@@ -1,0 +1,15 @@
+# Never bake secrets into an image
+.env
+.env.local
+.env.*
+
+# Local noise
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.git/
+.gitignore
+.DS_Store
+Thumbs.db
+*.log

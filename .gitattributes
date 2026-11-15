@@ -1,0 +1,6 @@
+# Normalise line endings: the app runs on Linux hosts (Render/Docker) while
+# edited on Windows. Windows still gets CRLF in the working copy.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

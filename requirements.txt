@@ -1,0 +1,6 @@
+groq>=0.9.0
+python-dotenv>=1.0.0
+flask>=3.0.0
+
+# Production server (Linux). Not used by `python main.py` on Windows.
+gunicorn>=21.2.0
