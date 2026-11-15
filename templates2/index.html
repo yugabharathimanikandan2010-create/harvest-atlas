@@ -1,0 +1,6048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="app" content="harvest-atlas" />
+  <title>Harvest Atlas — NASA crop rotation lab</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%231b3a28'/%3E%3Cpath d='M19 5C10 5 5 9.5 5 15.5 5 17.4 6 19 7.8 19 14 19 19 13.5 19 5Z' fill='%239db98f'/%3E%3Cpath d='M7 18c2.5-4.2 5.8-6.8 9.2-8.6' stroke='%23f7f2e5' stroke-width='1.3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --forest: #12281c;
+      --forest-2: #1b3a28;
+      --forest-3: #254b33;
+      --moss: #3d6a4b;
+      --sage: #9db98f;
+      --sage-soft: #dce7d2;
+      --cream: #f7f2e5;
+      --cream-2: #efe7d4;
+      --paper: #fffdf7;
+      --amber: #b4772a;
+      --amber-soft: #f8ecd5;
+      --clay: #a8452f;
+      --clay-soft: #f8e4de;
+      --ink: #1d2a1f;
+      --muted: #6c7867;
+      --faint: #8d9787;
+      --line: #e1dbc8;
+      --line-strong: #cfc8b2;
+      --ok: #2c6a3e;
+      --err: #a3372a;
+      --shadow-lg: 0 30px 80px rgba(10, 26, 16, 0.32);
+      --shadow-md: 0 16px 40px rgba(10, 26, 16, 0.2);
+      --serif: "Fraunces", Georgia, "Times New Roman", serif;
+      --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    [hidden] { display: none !important; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: var(--sans);
+      color: var(--ink);
+      background: var(--forest);
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      cursor: crosshair;
+      background: #dfe4d8;
+    }
+
+    .map-shade {
+      position: absolute;
+      inset: 0;
+      z-index: 400;
+      pointer-events: none;
+      box-shadow: inset 0 0 170px rgba(15, 33, 23, 0.28);
+    }
+
+    :focus-visible {
+      outline: 3px solid rgba(61, 106, 75, 0.4);
+      outline-offset: 2px;
+    }
+
+    /* --- App header ------------------------------------------------------- */
+
+    .topbar {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      z-index: 1200;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      height: 58px;
+      padding: 0 18px;
+      color: var(--cream);
+      background: rgba(15, 33, 23, 0.94);
+      border: 1px solid rgba(247, 242, 229, 0.14);
+      border-radius: 16px;
+      box-shadow: 0 18px 45px rgba(8, 20, 13, 0.35);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      color: var(--cream);
+      background: linear-gradient(145deg, #376444, #1a3827 70%);
+      border: 1px solid rgba(247, 242, 229, 0.24);
+      border-radius: 11px;
+    }
+
+    .brand-mark svg { width: 21px; height: 21px; transform: rotate(-6deg); }
+
+    .brand-text { min-width: 0; line-height: 1.1; }
+
+    .brand-title {
+      display: flex;
+      align-items: baseline;
+      gap: 9px;
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    .brand-sub {
+      font-family: var(--mono);
+      font-size: 8.5px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--sage);
+      white-space: nowrap;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .source-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 11px;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--sage-soft);
+      background: rgba(157, 185, 143, 0.12);
+      border: 1px solid rgba(157, 185, 143, 0.26);
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #9fd48f;
+      box-shadow: 0 0 0 3px rgba(159, 212, 143, 0.16);
+      animation: breathe 3s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+      50% { box-shadow: 0 0 0 6px rgba(159, 212, 143, 0.05); }
+    }
+
+    .topbar-action {
+      width: auto;
+      padding: 7px 13px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--forest);
+      background: var(--sage-soft);
+      border: 0;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .topbar-action:hover { background: #eaf1e3; }
+
+    /* --- Left dock -------------------------------------------------------- */
+
+    .dock {
+      position: fixed;
+      top: 88px;
+      left: 14px;
+      bottom: 14px;
+      z-index: 1100;
+      display: flex;
+      flex-direction: column;
+      width: 396px;
+      max-width: calc(100vw - 28px);
+      overflow: hidden;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .dock-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 20px 20px 18px;
+      scrollbar-width: thin;
+      scrollbar-color: #c8d2bc transparent;
+    }
+
+    .dock-scroll::-webkit-scrollbar { width: 7px; }
+    .dock-scroll::-webkit-scrollbar-thumb {
+      background: #c8d2bc;
+      border-radius: 999px;
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      font-family: var(--mono);
+      font-size: 8.5px;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--moss);
+    }
+
+    .dock h2 {
+      margin: 0 0 7px;
+      font-family: var(--serif);
+      font-size: 25px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      line-height: 1.08;
+      color: var(--forest);
+    }
+
+    .dock-sub {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    .step {
+      margin-top: 15px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--line);
+    }
+
+    .step-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .step-no {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--moss);
+      background: var(--sage-soft);
+      border-radius: 50%;
+    }
+
+    .step h3 {
+      flex: 1;
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--forest);
+    }
+
+    .step-state {
+      padding: 3px 8px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--faint);
+      background: var(--cream-2);
+      border-radius: 999px;
+    }
+
+    .step-state.ready {
+      color: var(--ok);
+      background: #e9f2e0;
+    }
+
+    /* --- Coordinates ------------------------------------------------------ */
+
+    .coords {
+      padding: 10px;
+      background: var(--cream-2);
+      border: 1px solid var(--line-strong);
+      border-radius: 13px;
+    }
+
+    .coords-empty {
+      margin: 0;
+      padding: 5px 0;
+      font-size: 12px;
+      text-align: center;
+      color: var(--faint);
+    }
+
+    .coords-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+
+    .coord {
+      padding: 6px 9px;
+      background: rgba(255, 253, 247, 0.82);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+    }
+
+    .coord-label {
+      display: block;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .coord-value {
+      display: block;
+      margin-top: 2px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--forest);
+    }
+
+    .accuracy {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 7px 2px 0;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--moss);
+    }
+
+    .accuracy::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--sage);
+    }
+
+    /* --- Manual coordinates ----------------------------------------------- */
+
+    .manual-coords {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 9px;
+    }
+
+    .manual-coords .field-row label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .manual-coords .field-row input {
+      width: 100%;
+      padding: 8px 9px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      appearance: none;
+    }
+
+    .manual-coords .field-row input::placeholder {
+      font-family: inherit;
+      color: #a9b0a0;
+    }
+
+    .manual-coords .field-row input:focus {
+      outline: 2px solid var(--sage);
+      outline-offset: 1px;
+    }
+
+    .manual-go {
+      grid-column: 1 / -1;
+      justify-content: center;
+    }
+
+    /* --- Buttons ---------------------------------------------------------- */
+
+    button {
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 15px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--cream);
+      background: var(--forest-2);
+      border: 0;
+      border-radius: 11px;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+    }
+
+    button svg { width: 16px; height: 16px; flex: none; }
+
+    button:active:not(:disabled) { transform: translateY(1px); }
+
+    button:disabled { cursor: not-allowed; box-shadow: none; }
+
+    .primary-btn {
+      background: linear-gradient(135deg, #2f5c3d, #17331f);
+      box-shadow: 0 10px 22px rgba(18, 40, 28, 0.22);
+    }
+
+    .primary-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #3a6c49, #1c3d27);
+    }
+
+    .primary-btn:disabled {
+      color: #8f9081;
+      background: #dbd6c7;
+    }
+
+    .primary-btn .btn-arrow { transition: transform 0.15s ease; }
+    .primary-btn:hover:not(:disabled) .btn-arrow { transform: translateX(3px); }
+
+    .secondary-btn {
+      color: var(--forest);
+      background: rgba(255, 253, 247, 0.72);
+      border: 1px solid var(--line-strong);
+    }
+
+    .secondary-btn:hover:not(:disabled) {
+      background: var(--cream-2);
+      border-color: var(--sage);
+    }
+
+    .secondary-btn:disabled {
+      color: #9a9a8b;
+      background: #f0ebdd;
+      border-color: #ddd7c6;
+    }
+
+    .actions {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .text-btn {
+      width: auto;
+      padding: 3px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--moss);
+      background: transparent;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+    }
+
+    .text-btn:hover:not(:disabled) { background: var(--cream-2); }
+
+    .status {
+      min-height: 17px;
+      margin: 9px 0 0;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--err); }
+
+    /* --- Priorities ------------------------------------------------------- */
+
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 9px;
+    }
+
+    .preset {
+      width: auto;
+      padding: 4px 9px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--moss);
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+    }
+
+    .preset:hover { background: var(--sage-soft); }
+
+    .priority-row {
+      display: grid;
+      grid-template-columns: 1fr 104px 24px;
+      align-items: center;
+      gap: 9px;
+      padding: 5px 0;
+    }
+
+    .priority-label {
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.25;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .priority-label span {
+      display: block;
+      margin-top: 1px;
+      font-size: 9.5px;
+      font-weight: 400;
+      color: var(--faint);
+    }
+
+    .priority-row input[type="range"] {
+      width: 100%;
+      height: 18px;
+      margin: 0;
+      accent-color: var(--moss);
+      cursor: pointer;
+    }
+
+    .p-value {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      text-align: right;
+      color: var(--forest);
+    }
+
+    /* --- Local context ---------------------------------------------------- */
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .field-row { min-width: 0; }
+
+    .field-row.wide { grid-column: 1 / -1; }
+
+    .field-row label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .field-row select,
+    .field-row input {
+      width: 100%;
+      padding: 8px 9px;
+      font: inherit;
+      font-size: 12px;
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      appearance: none;
+    }
+
+    .field-row select {
+      background-image: linear-gradient(45deg, transparent 50%, var(--moss) 50%),
+        linear-gradient(135deg, var(--moss) 50%, transparent 50%);
+      background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+      background-size: 5px 5px;
+      background-repeat: no-repeat;
+      padding-right: 24px;
+    }
+
+    .field-row input::placeholder { color: #a9b0a0; }
+
+    .current-crop {
+      margin-top: 10px;
+      padding: 9px 10px 10px;
+      background: rgba(255, 253, 247, 0.72);
+      border: 1px solid var(--line-strong);
+      border-radius: 11px;
+    }
+
+    .current-crop label { margin-bottom: 5px; }
+
+    .current-crop input {
+      width: 100%;
+      padding: 8px 9px;
+      font: inherit;
+      font-size: 12px;
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      appearance: none;
+    }
+
+    .current-crop input:focus {
+      outline: 2px solid var(--sage);
+      outline-offset: 1px;
+    }
+
+    .field-hint {
+      margin: 6px 1px 0;
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: var(--faint);
+    }
+
+    .dock-foot {
+      flex: none;
+      padding: 11px 20px 13px;
+      background: linear-gradient(180deg, rgba(247, 242, 229, 0), var(--cream-2));
+      border-top: 1px solid var(--line);
+    }
+
+    .dock-note {
+      margin: 0;
+      font-size: 9.5px;
+      line-height: 1.45;
+      color: var(--faint);
+    }
+
+    .dock-note strong { color: var(--moss); }
+
+    /* --- Diagnosis panel -------------------------------------------------- */
+
+    .diag-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1290;
+      background: rgba(9, 23, 14, 0.64);
+      backdrop-filter: blur(3px);
+    }
+
+    .diagnosis {
+      position: fixed;
+      inset: 12px;
+      z-index: 1300;
+      display: flex;
+      flex-direction: column;
+      width: auto;
+      max-width: none;
+      overflow: hidden;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: 0 40px 110px rgba(8, 22, 13, 0.55);
+    }
+
+    body.diag-open { overflow: hidden; }
+
+    .diag-head {
+      position: relative;
+      flex: none;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 18px 20px 14px;
+      background: linear-gradient(180deg, #fbf8ee, #f5efe0);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .diag-head::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 3px;
+      background: linear-gradient(90deg, #1a3827, #3d6a4b 45%, #9db98f 75%, #c9a35a);
+    }
+
+    .diag-head-text { flex: 1; min-width: 0; }
+
+    .diag-head h2 {
+      margin: 0 0 2px;
+      font-family: var(--serif);
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--forest);
+    }
+
+    .diag-place {
+      margin: 0;
+      overflow: hidden;
+      font-size: 11px;
+      line-height: 1.4;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--muted);
+    }
+
+    .diag-close {
+      flex: none;
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      font-size: 17px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--forest);
+      background: rgba(255, 253, 247, 0.85);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+    }
+
+    .diag-close:hover { background: var(--cream-2); }
+
+    .diag-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 15px 20px 6px;
+      scrollbar-width: thin;
+      scrollbar-color: #c8d2bc transparent;
+    }
+
+    .diag-scroll::-webkit-scrollbar { width: 7px; }
+    .diag-scroll::-webkit-scrollbar-thumb {
+      background: #c8d2bc;
+      border-radius: 999px;
+    }
+
+    .diag-inner {
+      width: 100%;
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .diag-period {
+      margin: 0 0 9px;
+      font-family: var(--mono);
+      font-size: 8.5px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .diag-headline {
+      margin: 0 0 13px;
+      padding: 12px 14px;
+      font-family: var(--serif);
+      font-size: 15px;
+      line-height: 1.45;
+      color: #2e4231;
+      background: rgba(157, 185, 143, 0.16);
+      border: 1px solid rgba(157, 185, 143, 0.5);
+      border-left: 3px solid var(--sage);
+      border-radius: 0 11px 11px 0;
+    }
+
+    .risk-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .risk-card {
+      padding: 11px 12px 10px;
+      background: linear-gradient(150deg, #fffdf7, #f9f4e7);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--sage);
+      border-radius: 11px;
+    }
+
+    .risk-card.level-moderate { border-left-color: var(--amber); }
+    .risk-card.level-high { border-left-color: var(--clay); }
+
+    .risk-top {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .risk-top h4 {
+      flex: 1;
+      margin: 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--forest);
+    }
+
+    .risk-value {
+      margin: 3px 0 5px;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .risk-evidence {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #43513f;
+    }
+
+    .level-pill {
+      flex: none;
+      padding: 2px 7px;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--ok);
+      background: #e9f2e0;
+      border-radius: 999px;
+    }
+
+    .level-pill.level-moderate {
+      color: #8a5a16;
+      background: var(--amber-soft);
+    }
+
+    .level-pill.level-high {
+      color: #8f3527;
+      background: var(--clay-soft);
+    }
+
+    .field-data {
+      display: grid;
+      gap: 8px;
+    }
+
+    .fd-card {
+      padding: 11px 12px 10px;
+      background: linear-gradient(150deg, #fffdf7, #f9f4e7);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--moss);
+      border-radius: 11px;
+    }
+
+    .fd-card h4 {
+      margin: 0 0 7px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--forest);
+    }
+
+    .fd-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 3px 0;
+      border-top: 1px dashed var(--line);
+      font-size: 11px;
+    }
+
+    .fd-row:first-of-type {
+      border-top: none;
+    }
+
+    .fd-label {
+      color: var(--muted);
+    }
+
+    .fd-value {
+      font-family: var(--mono);
+      font-size: 10px;
+      line-height: 1.4;
+      text-align: right;
+      color: #43513f;
+    }
+
+    .fd-source {
+      margin: 7px 0 0;
+      font-size: 9.5px;
+      line-height: 1.4;
+      color: var(--faint);
+    }
+
+    .fd-note {
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #43513f;
+    }
+
+    .fd-status {
+      display: inline-block;
+      margin-bottom: 6px;
+      padding: 2px 7px;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--cream-2);
+      border-radius: 999px;
+    }
+
+    .fd-status.status-done {
+      color: var(--ok);
+      background: #e9f2e0;
+    }
+
+    .fd-status.status-running,
+    .fd-status.status-queued {
+      color: #8a5a16;
+      background: var(--amber-soft);
+    }
+
+    .fd-status.status-error,
+    .fd-status.status-unavailable {
+      color: #8f3527;
+      background: var(--clay-soft);
+    }
+
+    .mission-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 7px;
+    }
+
+    .mission-chip {
+      padding: 2px 6px;
+      font-family: var(--mono);
+      font-size: 8px;
+      letter-spacing: 0.04em;
+      color: var(--moss);
+      background: rgba(157, 185, 143, 0.16);
+      border: 1px solid rgba(157, 185, 143, 0.34);
+      border-radius: 4px;
+    }
+
+    .mission-chip-muted {
+      color: #9a9a8b;
+      background: transparent;
+      border-style: dashed;
+      border-color: #cdc8b8;
+      text-decoration: line-through;
+      text-decoration-thickness: 1px;
+    }
+
+    .diag-section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0 7px;
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--moss);
+    }
+
+    .diag-section-title::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--line), transparent);
+    }
+
+    .priority-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .priority-chip {
+      padding: 4px 8px;
+      font-size: 10px;
+      color: var(--forest);
+      background: var(--cream);
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+    }
+
+    .priority-chip b {
+      font-family: var(--mono);
+      font-weight: 500;
+      color: var(--moss);
+    }
+
+    .coverage {
+      margin-top: 6px;
+      border: 1px dashed var(--line-strong);
+      border-radius: 10px;
+    }
+
+    .coverage summary {
+      padding: 8px 10px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--moss);
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .coverage summary::-webkit-details-marker { display: none; }
+
+    .coverage summary::before {
+      content: "+";
+      display: inline-block;
+      width: 14px;
+      font-family: var(--mono);
+      font-weight: 500;
+    }
+
+    .coverage[open] summary::before { content: "-"; }
+
+    .coverage-body {
+      padding: 0 10px 10px;
+      font-size: 10.5px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .coverage-body h5 {
+      margin: 8px 0 3px;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .coverage-body ul {
+      margin: 0;
+      padding-left: 14px;
+    }
+
+    .coverage-body li { margin-bottom: 2px; }
+
+    .coverage-note {
+      margin: 9px 0 0;
+      padding-top: 8px;
+      font-style: italic;
+      border-top: 1px dashed var(--line);
+      color: var(--faint);
+    }
+
+    .diag-foot {
+      flex: none;
+      display: grid;
+      gap: 7px;
+      padding: 13px 20px 15px;
+      background: linear-gradient(180deg, #f8f3e7, #f1ebda);
+      border-top: 1px solid var(--line);
+    }
+
+    .diag-hint {
+      margin: 0;
+      font-size: 9.5px;
+      line-height: 1.4;
+      text-align: center;
+      color: var(--faint);
+    }
+
+    /* --- Map controls ----------------------------------------------------- */
+
+    .leaflet-top.leaflet-right { top: 74px; }
+
+    .leaflet-control-layers {
+      padding: 2px;
+      font-family: var(--sans);
+      color: var(--ink);
+      background: rgba(255, 253, 247, 0.96);
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .leaflet-control-layers-expanded { padding: 9px 12px; }
+
+    .leaflet-control-layers label {
+      margin: 2px 0;
+      font-size: 11.5px;
+      color: #3b4a37;
+    }
+
+    .leaflet-control-layers-separator {
+      margin: 6px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .leaflet-control-layers-selector { accent-color: var(--moss); }
+
+    .leaflet-control-zoom {
+      overflow: hidden;
+      border: 0 !important;
+      border-radius: 12px;
+      box-shadow: var(--shadow-md) !important;
+    }
+
+    .leaflet-control-zoom a {
+      width: 32px;
+      height: 32px;
+      line-height: 32px;
+      font-family: var(--sans);
+      color: var(--forest);
+      background: rgba(255, 253, 247, 0.96);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .leaflet-control-zoom a:hover { background: var(--cream-2); }
+    .leaflet-control-zoom a:last-child { border-bottom: 0; }
+
+    .leaflet-control-scale-line {
+      padding: 2px 5px;
+      font-size: 10px;
+      color: var(--forest);
+      background: rgba(255, 253, 247, 0.88);
+      border: 1px solid var(--moss);
+      border-top: 0;
+    }
+
+    .leaflet-control-attribution {
+      font-size: 9.5px !important;
+      color: #7a8272 !important;
+      background: rgba(255, 253, 247, 0.88) !important;
+    }
+
+    .leaflet-control-attribution a { color: var(--moss); }
+
+    /* --- Leaf pin --------------------------------------------------------- */
+
+    .leaf-marker { background: transparent; border: 0; }
+
+    .leaf-marker svg {
+      display: block;
+      transform-origin: 50% 100%;
+      filter: drop-shadow(0 9px 9px rgba(20, 43, 30, 0.35));
+      transition: transform 0.15s ease;
+    }
+
+    .leaf-marker:hover svg { transform: translateY(-2px); }
+
+    /* --- Comparison dialog ------------------------------------------------ */
+
+    #compareDialog {
+      width: min(1200px, calc(100vw - 32px));
+      max-height: 92vh;
+      padding: 0;
+      overflow: hidden;
+      font-family: var(--sans);
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: 0 40px 110px rgba(8, 22, 13, 0.55);
+    }
+
+    #compareDialog[open] { display: flex; flex-direction: column; }
+
+    #compareDialog::backdrop {
+      background: rgba(9, 23, 14, 0.64);
+      backdrop-filter: blur(3px);
+    }
+
+    .cmp-head {
+      position: relative;
+      flex: none;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 21px 26px 15px;
+      background: linear-gradient(180deg, #fbf8ee, #f5efe0);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .cmp-head::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 4px;
+      background: linear-gradient(90deg, #12281c, #3d6a4b 42%, #9db98f 72%, #c9a35a);
+    }
+
+    .cmp-head-text { flex: 1; min-width: 0; }
+
+    .cmp-eyebrow {
+      margin: 0 0 4px;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--moss);
+    }
+
+    .cmp-head h2 {
+      margin: 0 0 4px;
+      font-family: var(--serif);
+      font-size: 27px;
+      font-weight: 600;
+      letter-spacing: -0.018em;
+      line-height: 1.08;
+      color: var(--forest);
+    }
+
+    .cmp-sub {
+      margin: 0;
+      overflow: hidden;
+      font-size: 11.5px;
+      line-height: 1.45;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--muted);
+    }
+
+    .cmp-close {
+      flex: none;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      font-size: 18px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--forest);
+      background: rgba(255, 253, 247, 0.85);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+    }
+
+    .cmp-close:hover { background: var(--cream-2); }
+
+    .cmp-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 17px 26px 20px;
+      scrollbar-width: thin;
+      scrollbar-color: #c8d2bc transparent;
+    }
+
+    .cmp-body::-webkit-scrollbar { width: 8px; }
+    .cmp-body::-webkit-scrollbar-thumb {
+      background: #cfd6c3;
+      border-radius: 999px;
+    }
+
+    .cmp-summary {
+      margin: 0 0 11px;
+      padding: 13px 16px;
+      font-family: var(--serif);
+      font-size: 14.5px;
+      line-height: 1.5;
+      color: #2f4230;
+      background: rgba(157, 185, 143, 0.15);
+      border: 1px solid rgba(157, 185, 143, 0.48);
+      border-left: 3px solid var(--sage);
+      border-radius: 0 11px 11px 0;
+    }
+
+    .cmp-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 4px;
+    }
+
+    .cmp-chip {
+      padding: 4px 9px;
+      font-size: 10px;
+      color: var(--forest);
+      background: var(--cream);
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+    }
+
+    .cmp-chip b {
+      font-family: var(--mono);
+      font-weight: 500;
+      color: var(--moss);
+    }
+
+    .cmp-section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 21px 0 9px;
+      font-family: var(--serif);
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--forest);
+    }
+
+    .cmp-section-title::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--line-strong), transparent);
+    }
+
+    .cmp-note {
+      margin: 0 0 10px;
+      font-size: 10.5px;
+      line-height: 1.5;
+      color: var(--faint);
+    }
+
+    .diag-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 12px;
+      background: var(--cream);
+      border: 1px solid var(--line);
+      border-radius: 11px;
+    }
+
+    .diag-strip-text {
+      flex: 1 1 260px;
+      margin: 0;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: #39483a;
+    }
+
+    .diag-pip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      font-size: 9.5px;
+      font-weight: 600;
+      color: #43513f;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .diag-pip::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--sage);
+    }
+
+    .diag-pip.level-moderate::before { background: var(--amber); }
+    .diag-pip.level-high::before { background: var(--clay); }
+
+    /* --- Comparison table ------------------------------------------------- */
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--paper);
+    }
+
+    table.compare {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+
+    table.compare th,
+    table.compare td {
+      padding: 9px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+
+    table.compare thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--faint);
+      background: var(--cream);
+    }
+
+    table.compare tbody tr:last-child th,
+    table.compare tbody tr:last-child td { border-bottom: 0; }
+
+    table.compare tbody tr.row-baseline { background: rgba(180, 119, 42, 0.08); }
+
+    table.compare th[scope="row"] {
+      min-width: 215px;
+      font-weight: 600;
+      white-space: normal;
+    }
+
+    .t-name {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--forest);
+    }
+
+    .t-rot {
+      display: block;
+      margin-top: 1px;
+      font-size: 9.5px;
+      font-weight: 400;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .t-flag {
+      display: inline-block;
+      margin-left: 5px;
+      padding: 1px 5px;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #8a5a16;
+      background: var(--amber-soft);
+      border-radius: 999px;
+      vertical-align: 1px;
+    }
+
+    td.num {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      text-align: center;
+    }
+
+    td.num.good { color: var(--ok); }
+    td.num.mid { color: #96611c; }
+    td.num.low { color: var(--clay); }
+
+    td.overall {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--forest);
+      background: rgba(157, 185, 143, 0.12);
+    }
+
+    /* --- Scenario cards --------------------------------------------------- */
+
+    .scenario-card {
+      position: relative;
+      margin-bottom: 13px;
+      padding: 17px 18px 15px;
+      background: linear-gradient(150deg, #fffdf7 0%, #f9f4e7 100%);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 2px 0 rgba(24, 51, 37, 0.03);
+    }
+
+    .scenario-card.is-baseline {
+      background: linear-gradient(150deg, #fffaf0 0%, #f8efdc 100%);
+      border-color: #e6d3ae;
+    }
+
+    .scenario-card.is-top {
+      border-color: rgba(61, 106, 75, 0.45);
+      box-shadow: 0 0 0 1px rgba(61, 106, 75, 0.18), 0 14px 30px rgba(24, 51, 37, 0.09);
+    }
+
+    .scenario-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 3px;
+      border-radius: 16px 16px 0 0;
+      background: linear-gradient(90deg, transparent, rgba(111, 148, 104, 0.5), transparent);
+    }
+
+    .scenario-card.is-baseline::before {
+      background: linear-gradient(90deg, transparent, rgba(180, 119, 42, 0.45), transparent);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      margin-bottom: 10px;
+    }
+
+    .rank-badge {
+      flex: none;
+      display: grid;
+      place-items: center;
+      min-width: 34px;
+      height: 34px;
+      padding: 0 6px;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      color: var(--moss);
+      background: rgba(61, 106, 75, 0.1);
+      border: 1px solid rgba(61, 106, 75, 0.25);
+      border-radius: 9px;
+    }
+
+    .rank-badge.bench {
+      color: #8a5a16;
+      background: var(--amber-soft);
+      border-color: #ecd6ad;
+      font-family: var(--sans);
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .card-title-wrap { flex: 1; min-width: 0; }
+
+    .card-kicker {
+      margin: 0 0 2px;
+      font-family: var(--mono);
+      font-size: 8px;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+
+    .card-title {
+      margin: 0 0 3px;
+      font-family: var(--serif);
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1.25;
+      color: var(--forest);
+    }
+
+    .card-rotation {
+      margin: 0;
+      font-size: 11.5px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .score-ring {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: conic-gradient(var(--moss) calc(var(--score) * 1%), #e8e1cf 0);
+    }
+
+    .score-ring-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      background: var(--paper);
+      border-radius: 50%;
+    }
+
+    .score-ring b {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--forest);
+    }
+
+    .score-ring small {
+      margin-top: 2px;
+      font-size: 7px;
+      letter-spacing: 0.06em;
+      color: var(--faint);
+    }
+
+    .score-bars {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px 16px;
+      margin: 4px 0 11px;
+    }
+
+    .score-bar {
+      display: grid;
+      grid-template-columns: 58px 1fr 24px;
+      align-items: center;
+      gap: 7px;
+      font-size: 9.5px;
+      color: var(--muted);
+    }
+
+    .score-bar .track {
+      height: 4px;
+      overflow: hidden;
+      background: #e8e1cf;
+      border-radius: 999px;
+    }
+
+    .score-bar .track i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--sage), var(--moss));
+      border-radius: 999px;
+    }
+
+    .score-bar b {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      font-weight: 500;
+      text-align: right;
+      color: var(--forest);
+    }
+
+    .card-why {
+      margin: 0 0 11px;
+      padding-left: 11px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #39483a;
+      border-left: 2px solid rgba(157, 185, 143, 0.6);
+    }
+
+    .tradeoff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .trade-box {
+      padding: 9px 11px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+    }
+
+    .trade-box.gains { background: #edf4e6; border-color: #d4e2c8; }
+    .trade-box.costs { background: var(--amber-soft); border-color: #ecd6ad; }
+
+    .trade-box h5 {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin: 0 0 4px;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ok);
+    }
+
+    .trade-box.costs h5 { color: #8a5a16; }
+
+    .trade-box ul {
+      margin: 0;
+      padding-left: 13px;
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: #43513f;
+    }
+
+    .trade-box li { margin-bottom: 2px; }
+
+    .strategy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .strategy-box {
+      padding: 9px 11px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #f4f7f0;
+    }
+
+    .strategy-box.weather {
+      background: #eef3f7;
+      border-color: #d2dee6;
+    }
+
+    .strategy-box h5 {
+      margin: 0 0 4px;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #4c6b3c;
+    }
+
+    .strategy-box.weather h5 { color: #2f5a74; }
+
+    .strategy-box p {
+      margin: 0;
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: #43513f;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      border-radius: 999px;
+    }
+
+    .badge.water-low, .badge.conf-high {
+      color: #356b3c;
+      background: #eaf2e2;
+      border: 1px solid #cfe0c2;
+    }
+
+    .badge.water-medium, .badge.conf-medium {
+      color: #96611c;
+      background: #faf0d9;
+      border: 1px solid #eeddba;
+    }
+
+    .badge.water-high, .badge.conf-low {
+      color: #a8452f;
+      background: var(--clay-soft);
+      border: 1px solid #eed3c7;
+    }
+
+    .badge.plain {
+      color: var(--muted);
+      background: var(--cream);
+      border: 1px solid var(--line-strong);
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 600;
+    }
+
+    .scenario-details {
+      margin-top: 7px;
+      border: 1px dashed var(--line-strong);
+      border-radius: 9px;
+    }
+
+    .scenario-details summary {
+      padding: 7px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--moss);
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .scenario-details summary::-webkit-details-marker { display: none; }
+
+    .scenario-details summary::before {
+      content: "+";
+      display: inline-block;
+      width: 13px;
+      font-family: var(--mono);
+      font-weight: 500;
+    }
+
+    .scenario-details[open] summary::before { content: "-"; }
+
+    .details-body {
+      padding: 0 11px 10px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #43513f;
+    }
+
+    .details-body p { margin: 0 0 7px; }
+
+    .details-body ol {
+      margin: 0;
+      padding-left: 16px;
+    }
+
+    .details-body li { margin-bottom: 3px; }
+
+    .evidence-box {
+      margin-top: 8px;
+      padding: 8px 10px;
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: #43513f;
+      background: rgba(157, 185, 143, 0.12);
+      border: 1px solid rgba(157, 185, 143, 0.3);
+      border-radius: 8px;
+    }
+
+    .evidence-box h5, .gaps-box h5 {
+      margin: 0 0 3px;
+      font-size: 7.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--moss);
+    }
+
+    .evidence-box ul, .gaps-box ul {
+      margin: 0;
+      padding-left: 14px;
+    }
+
+    .gaps-box {
+      margin-top: 6px;
+      padding: 8px 10px;
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: #6d4f2a;
+      background: #faf0df;
+      border: 1px dashed #ecd6ad;
+      border-radius: 8px;
+    }
+
+    .gaps-box h5 { color: #8a5a16; }
+
+    .gaps-box p { margin: 0; }
+
+    .confidence-note {
+      margin-top: 6px;
+      font-size: 9.5px;
+      font-style: italic;
+      color: var(--faint);
+    }
+
+    /* --- Uncertainty ------------------------------------------------------ */
+
+    .uncertainty {
+      margin-top: 20px;
+      padding: 15px 17px;
+      background: var(--cream-2);
+      border: 1px dashed var(--line-strong);
+      border-radius: 13px;
+    }
+
+    .uncertainty h3 {
+      margin: 0 0 5px;
+      font-family: var(--serif);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--forest);
+    }
+
+    .uncertainty-summary {
+      margin: 0 0 10px;
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: #43513f;
+    }
+
+    .uncertainty-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .uncertainty h4 {
+      margin: 0 0 4px;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--moss);
+    }
+
+    .uncertainty ul {
+      margin: 0;
+      padding-left: 14px;
+      font-size: 10.5px;
+      line-height: 1.5;
+      color: #4d5949;
+    }
+
+    .uncertainty li { margin-bottom: 3px; }
+
+    .prov-note {
+      margin: 11px 0 0;
+      padding-top: 9px;
+      font-size: 9.5px;
+      font-style: italic;
+      line-height: 1.45;
+      color: var(--faint);
+      border-top: 1px dashed var(--line-strong);
+    }
+
+    /* --- Dialog footer, loader, error ------------------------------------- */
+
+    .cmp-foot {
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 26px 15px;
+      background: linear-gradient(180deg, #f8f3e7, #f1ebda);
+      border-top: 1px solid var(--line);
+    }
+
+    .cmp-foot-note {
+      margin: 0;
+      max-width: 420px;
+      font-size: 9.5px;
+      line-height: 1.45;
+      color: var(--faint);
+    }
+
+    .cmp-foot-actions {
+      flex: none;
+      display: flex;
+      gap: 8px;
+    }
+
+    .cmp-foot-actions button {
+      width: auto;
+      padding: 8px 14px;
+      font-size: 11.5px;
+    }
+
+    .loader {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 30px 4px 34px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .spinner {
+      flex: none;
+      width: 25px;
+      height: 25px;
+      border: 3px solid rgba(157, 185, 143, 0.35);
+      border-top-color: var(--moss);
+      border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .dialog-error {
+      margin: 6px 0 14px;
+      padding: 12px 14px;
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: #8f3527;
+      background: #fbebe6;
+      border: 1px solid #f0cfc5;
+      border-left: 3px solid var(--err);
+      border-radius: 0 9px 9px 0;
+    }
+
+    .risk-alerts {
+      margin-top: 10px;
+      padding: 10px;
+      background: #fbf4e8;
+      border: 1px solid #e8d9b8;
+      border-radius: 10px;
+    }
+
+    .risk-alerts h5 {
+      margin: 0 0 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #8a5a16;
+    }
+
+    .risk-alert-item {
+      display: grid;
+      grid-template-columns: 68px 1fr;
+      gap: 8px;
+      padding: 5px 0;
+      border-top: 1px dashed #e3d3ae;
+      font-size: 10.5px;
+      line-height: 1.4;
+    }
+
+    .risk-alert-item:first-of-type { border-top: 0; }
+
+    .risk-alert-item .ra-type {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .risk-alert-item .ra-note { color: var(--muted); }
+
+    .ra-sev {
+      display: inline-block;
+      margin-top: 2px;
+      padding: 1px 5px;
+      border-radius: 999px;
+      font-size: 8.5px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .ra-sev.low { color: #1b3a28; background: #d9e6cc; }
+    .ra-sev.medium { color: #8a5a16; background: #f6e7c4; }
+    .ra-sev.high { color: #8a3b1c; background: #f3d9cd; }
+
+    /* --- Responsive ------------------------------------------------------- */
+
+    @media (max-width: 1180px) {
+      .dock { width: 368px; }
+    }
+
+    @media (max-width: 980px) {
+      .dock {
+        top: auto;
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        width: auto;
+        max-width: none;
+        max-height: 58vh;
+      }
+
+      .diagnosis {
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        width: auto;
+        max-width: none;
+      }
+
+      .topbar { left: 10px; right: 10px; }
+      .brand-sub { display: none; }
+      .leaflet-top.leaflet-right { top: 64px; }
+    }
+
+    @media (max-width: 640px) {
+      .topbar {
+        top: 8px;
+        left: 8px;
+        right: 8px;
+        height: 52px;
+        padding: 0 12px;
+        border-radius: 14px;
+      }
+
+      .brand-title { font-size: 16px; }
+      .brand-mark { width: 32px; height: 32px; }
+      .source-pill { padding: 5px 9px; font-size: 9.5px; }
+
+      .dock { left: 8px; right: 8px; bottom: 8px; max-height: 62vh; border-radius: 16px; }
+      .dock-scroll { padding: 16px 15px 14px; }
+      .dock h2 { font-size: 21px; }
+
+      .diagnosis { inset: 6px; border-radius: 16px; }
+      .diag-head { padding: 16px 15px 12px; }
+      .diag-scroll { padding: 13px 15px 5px; }
+      .diag-foot { padding: 11px 15px 13px; }
+
+      .form-grid { grid-template-columns: 1fr; }
+      .field-row.wide { grid-column: auto; }
+      .priority-row { grid-template-columns: 1fr 88px 22px; }
+
+      #compareDialog { width: calc(100vw - 12px); max-height: 95vh; border-radius: 16px; }
+      .cmp-head { padding: 17px 15px 12px; }
+      .cmp-head h2 { font-size: 21px; }
+      .cmp-body { padding: 14px 15px 16px; }
+      .cmp-foot { flex-direction: column; align-items: stretch; gap: 9px; padding: 11px 15px 14px; }
+      .cmp-foot-note { display: none; }
+      .cmp-foot-actions { width: 100%; }
+      .cmp-foot-actions button { flex: 1; }
+
+      .score-bars { grid-template-columns: 1fr; }
+      .tradeoff-grid { grid-template-columns: 1fr; }
+      .strategy-grid { grid-template-columns: 1fr; }
+      .uncertainty-grid { grid-template-columns: 1fr; }
+      .scenario-card { padding: 14px 13px 12px; }
+      .card-title { font-size: 15px; }
+      .score-ring { width: 52px; height: 52px; }
+      .score-ring-inner { width: 42px; height: 42px; }
+    }
+
+    /* --- Boundary picker, analytics, stress and disease ------------------- */
+
+    .boundary-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .boundary-row .secondary-btn { flex: 1 1 auto; }
+
+    .boundary-area {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--forest-2);
+      background: var(--sage-soft);
+      border-radius: 999px;
+      padding: 4px 10px;
+    }
+
+    .boundary-row .text-btn { margin: 0; }
+
+    .free-draw-active {
+      cursor: crosshair;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .free-draw-active.leaflet-container { cursor: crosshair; }
+
+    .soil-test {
+      margin-top: 12px;
+      border: 1px dashed var(--line-strong);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #fbf8ee;
+    }
+
+    .soil-test summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--forest-2);
+    }
+
+    .soil-test .form-grid { margin-top: 10px; }
+
+    .analytics-tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .analytics-tile {
+      padding: 10px 11px;
+      background: #fbf8ee;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .analytics-tile .at-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin: 0 0 4px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .analytics-tile .at-value {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--forest);
+      line-height: 1.1;
+    }
+
+    .analytics-tile .at-note {
+      margin: 4px 0 0;
+      font-size: 10.5px;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .data-grid-wrap {
+      overflow-x: auto;
+      margin-bottom: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--paper);
+    }
+
+    .data-grid {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10.5px;
+    }
+
+    .data-grid th {
+      padding: 7px 8px;
+      text-align: left;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: #f4f0e2;
+      border-bottom: 1px solid var(--line-strong);
+      white-space: nowrap;
+    }
+
+    .data-grid td {
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      color: var(--ink);
+    }
+
+    .data-grid tr:last-child td { border-bottom: 0; }
+
+    .data-grid .dg-mission { font-weight: 600; white-space: nowrap; }
+    .data-grid .dg-res { white-space: nowrap; color: var(--muted); }
+    .data-grid .dg-note { color: var(--muted); font-size: 10px; }
+
+    .dg-pill {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .dg-pill.ok { color: #1b3a28; background: #d9e6cc; }
+    .dg-pill.gap { color: #8a3b1c; background: #f3d9cd; }
+    .dg-pill.pending { color: #8a5a16; background: #f6e7c4; }
+    .dg-pill.not_queried { color: #6c6a60; background: #e8e3d5; }
+    .dg-pill.input { color: #3f5a6b; background: #dce8ef; }
+
+    .zone-panel {
+      margin-bottom: 12px;
+      padding: 12px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .zone-intro {
+      margin: 0 0 8px;
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .zone-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .zone-status { font-size: 11px; color: var(--muted); }
+
+    .zone-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .zone-card {
+      padding: 9px 10px;
+      background: #fbf8ee;
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--moss);
+      border-radius: 10px;
+      font-size: 10.5px;
+    }
+
+    .zone-card.level-moderate { border-left-color: var(--amber); }
+    .zone-card.level-high { border-left-color: var(--clay); }
+
+    .zone-card h5 {
+      margin: 0 0 3px;
+      font-size: 11px;
+      color: var(--forest-2);
+    }
+
+    .zone-card .zone-elev {
+      margin: 0 0 4px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .zone-risk-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      margin: 1px 0;
+      color: var(--ink);
+    }
+
+    .zone-risk-row b { font-weight: 600; }
+
+    .zone-summary {
+      margin: 10px 0 0;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--forest-2);
+    }
+
+    .zone-note {
+      margin: 6px 0 0;
+      font-size: 10px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .hint-dot {
+      display: inline-grid;
+      place-items: center;
+      width: 14px;
+      height: 14px;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-style: normal;
+      color: var(--forest-2);
+      background: var(--sage-soft);
+      border-radius: 50%;
+      cursor: help;
+    }
+
+    .chart-card {
+      margin-bottom: 12px;
+      padding: 12px 12px 8px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+    }
+
+    .chart-card h4 {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--forest-2);
+    }
+
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    .chart-svg { display: block; width: 100%; height: auto; }
+
+    .chart-empty {
+      margin: 4px 0;
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+
+    .chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 2px 0 0;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .chart-legend i {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 4px;
+      border-radius: 2px;
+      vertical-align: middle;
+    }
+
+    .root-zone-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .root-zone-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 5px 0;
+      font-size: 11.5px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .root-zone-list li:last-child { border-bottom: 0; }
+    .root-zone-list b { font-family: var(--mono); font-weight: 500; }
+
+    .root-bar {
+      position: relative;
+      height: 10px;
+      margin: 6px 0 2px;
+      background: linear-gradient(90deg, #c9a26a, #8fa678 55%, #3d6a4b);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .root-bar span {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--forest);
+    }
+
+    .nourishment-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+    }
+
+    .nourish-item {
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--line-strong);
+      border-radius: 10px;
+      background: #fbf8ee;
+    }
+
+    .nourish-item.status-low { border-left-color: var(--clay); }
+    .nourish-item.status-medium,
+    .nourish-item.status-slightly-low,
+    .nourish-item.status-slightly-high { border-left-color: var(--amber); }
+    .nourish-item.status-good,
+    .nourish-item.status-high { border-left-color: var(--moss); }
+
+    .nourish-item h5 {
+      margin: 0 0 2px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .nourish-item .nv {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--forest);
+    }
+
+    .nourish-item p.note {
+      margin: 4px 0 0;
+      font-size: 10.5px;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .barefield-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 64px;
+      padding: 6px 8px;
+      background: #fbf8ee;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    .barefield-bar {
+      flex: 1;
+      min-width: 3px;
+      background: var(--moss);
+      border-radius: 2px 2px 0 0;
+    }
+
+    .barefield-bar.low-cover { background: var(--clay); }
+
+    .barefield-note {
+      margin: 6px 0 0;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .barefield-list {
+      margin: 4px 0 0;
+      padding-left: 16px;
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .disease-panel {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fbf8ee;
+    }
+
+    .disease-panel textarea {
+      width: 100%;
+      min-height: 72px;
+      resize: vertical;
+      font-family: var(--sans);
+      font-size: 12px;
+      color: var(--ink);
+      background: var(--paper);
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+
+    .disease-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .disease-actions .primary-btn { flex: 1 1 auto; }
+
+    .disease-result { margin-top: 10px; }
+
+    .disease-card {
+      margin-top: 8px;
+      padding: 10px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    .disease-card h5 {
+      margin: 0 0 4px;
+      font-size: 12px;
+      color: var(--forest);
+    }
+
+    .disease-card .conf-pill {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 7px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-radius: 999px;
+      background: var(--sage-soft);
+      color: var(--forest-2);
+    }
+
+    .disease-card .conf-pill.high { background: var(--clay-soft); color: var(--clay); }
+    .disease-card .conf-pill.medium { background: var(--amber-soft); color: var(--amber); }
+
+    .disease-card p { margin: 4px 0; font-size: 11.5px; line-height: 1.4; }
+
+    .disease-card ul { margin: 4px 0 0; padding-left: 16px; font-size: 11.5px; line-height: 1.4; }
+
+    .safety-note {
+      margin-top: 8px;
+      padding: 8px 10px;
+      font-size: 10.5px;
+      line-height: 1.4;
+      color: #6d3a12;
+      background: var(--amber-soft);
+      border-radius: 8px;
+    }
+
+    .tradeoff-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .tradeoff-card {
+      padding: 8px 9px;
+      background: #fbf8ee;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    .tradeoff-card .tc-label {
+      margin: 0;
+      font-size: 9.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+    }
+
+    .tradeoff-card .tc-value {
+      margin: 2px 0 4px;
+      font-family: var(--serif);
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--forest);
+    }
+
+    .tradeoff-card .tc-track {
+      height: 5px;
+      background: var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .tradeoff-card .tc-track i {
+      display: block;
+      height: 100%;
+      background: var(--moss);
+      border-radius: inherit;
+    }
+
+    .calendar {
+      margin-top: 10px;
+      padding: 10px;
+      background: #fbf8ee;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    .calendar h5 {
+      margin: 0 0 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--forest-2);
+    }
+
+    .cal-year {
+      margin: 8px 0 2px;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--forest-2);
+    }
+
+    .cal-year:first-of-type { margin-top: 0; }
+
+    .cal-row {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+      font-size: 10.5px;
+    }
+
+    .cal-row .cal-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--ink);
+    }
+
+    .cal-track {
+      position: relative;
+      height: 12px;
+      background: repeating-linear-gradient(90deg, #eee8d7 0 8.33%, #f7f2e5 8.33% 16.66%);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .cal-bar {
+      position: absolute;
+      top: 2px;
+      bottom: 2px;
+      border-radius: 3px;
+      background: var(--moss);
+    }
+
+    .cal-bar.role-cover { background: var(--amber); }
+    .cal-bar.role-legume { background: #6f8f4e; }
+    .cal-bar.role-fallow { background: #b9ad90; }
+
+    .cal-months {
+      display: grid;
+      grid-template-columns: 76px 1fr;
+      gap: 6px;
+      margin-bottom: 4px;
+      font-family: var(--mono);
+      font-size: 8px;
+      color: var(--faint);
+    }
+
+    .cal-month-row {
+      grid-column: 2;
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      text-align: center;
+    }
+
+    .stress-panel {
+      margin-top: 14px;
+      padding: 14px;
+      background: #f4f0e2;
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+    }
+
+    .stress-panel h3 {
+      margin: 0 0 4px;
+      font-family: var(--serif);
+      font-size: 17px;
+      color: var(--forest);
+    }
+
+    .stress-sliders {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .stress-slider {
+      display: grid;
+      grid-template-columns: 130px 1fr 56px;
+      align-items: center;
+      gap: 8px;
+      font-size: 11.5px;
+    }
+
+    .stress-slider output {
+      font-family: var(--mono);
+      font-size: 11px;
+      text-align: right;
+    }
+
+    .stress-results {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .stress-card {
+      padding: 10px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--moss);
+      border-radius: 10px;
+    }
+
+    .stress-card.risk-moderate { border-top-color: var(--amber); }
+    .stress-card.risk-high { border-top-color: var(--clay); }
+
+    .stress-card h5 {
+      margin: 0 0 2px;
+      font-size: 11.5px;
+      color: var(--forest);
+    }
+
+    .stress-card .sc-rot {
+      margin: 0 0 6px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .stress-card .sc-balance {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--forest);
+    }
+
+    .stress-card .sc-note {
+      margin: 4px 0 0;
+      font-size: 10.5px;
+      line-height: 1.35;
+      color: var(--muted);
+    }
+
+    .stress-alert {
+      margin-top: 10px;
+      padding: 9px 11px;
+      font-size: 11.5px;
+      line-height: 1.4;
+      color: #6d3a12;
+      background: var(--amber-soft);
+      border-radius: 9px;
+    }
+
+    @media (min-width: 620px) {
+      .chart-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    }
+
+    /* The diagnosis now opens as a full-screen sheet, so use the extra width. */
+    @media (min-width: 900px) {
+      .diag-head { padding: 20px 28px 15px; }
+      .diag-head h2 { font-size: 24px; }
+      .diag-place { font-size: 12px; }
+      .diag-scroll { padding: 18px 28px 8px; }
+      .diag-foot {
+        grid-auto-flow: column;
+        justify-content: center;
+        align-items: center;
+      }
+      .diag-foot .primary-btn,
+      .diag-foot .secondary-btn { width: auto; min-width: 230px; }
+      .diag-hint { grid-column: 1 / -1; }
+    }
+
+    @media (min-width: 1100px) {
+      .risk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .analytics-tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+      .nourishment-grid { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="map" aria-label="Interactive farm map"></div>
+  <div class="map-shade" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 4C10 4 4 9 4 16c0 2 1 4 3 4 7 0 13-6 13-16Z" />
+          <path d="M6 18c3-5 7-8 11-10" />
+        </svg>
+      </span>
+      <div class="brand-text">
+        <p class="brand-title">Harvest Atlas</p>
+        <span class="brand-sub">NASA crop rotation lab</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="source-pill"><span class="live-dot" aria-hidden="true"></span> NASA POWER</span>
+      <button class="topbar-action" id="openDiagnosisBtn" type="button" hidden>Field diagnosis</button>
+    </div>
+  </header>
+
+  <aside class="dock" aria-label="Field setup">
+    <div class="dock-scroll">
+      <p class="eyebrow">Field decision support</p>
+      <h2>Plan the next rotation.</h2>
+      <p class="dock-sub">
+        Pick your field, say what matters most, and compare three rotation
+        scenarios against what you already grow.
+      </p>
+
+      <section class="step" aria-labelledby="stepField">
+        <div class="step-head">
+          <span class="step-no">1</span>
+          <h3 id="stepField">Field location</h3>
+          <span class="step-state" id="fieldState">Not set</span>
+        </div>
+
+        <div class="coords" id="coords">
+          <p class="coords-empty" id="coordsEmpty">Tap the map, use GPS, or type coordinates</p>
+          <div class="coords-grid" id="coordsGrid" hidden>
+            <div class="coord">
+              <span class="coord-label">Latitude</span>
+              <span class="coord-value" id="latValue">—</span>
+            </div>
+            <div class="coord">
+              <span class="coord-label">Longitude</span>
+              <span class="coord-value" id="lngValue">—</span>
+            </div>
+          </div>
+          <p class="accuracy" id="accuracyEl" hidden></p>
+        </div>
+
+        <form class="manual-coords" id="manualCoordsForm" novalidate>
+          <div class="field-row">
+            <label for="manualLat">Latitude</label>
+            <input
+              id="manualLat"
+              name="manualLat"
+              type="number"
+              inputmode="decimal"
+              step="any"
+              min="-90"
+              max="90"
+              placeholder="e.g. 9.9252"
+              autocomplete="off"
+            />
+          </div>
+          <div class="field-row">
+            <label for="manualLng">Longitude</label>
+            <input
+              id="manualLng"
+              name="manualLng"
+              type="number"
+              inputmode="decimal"
+              step="any"
+              min="-180"
+              max="180"
+              placeholder="e.g. 78.1198"
+              autocomplete="off"
+            />
+          </div>
+          <button id="manualGoBtn" class="secondary-btn manual-go" type="submit">
+            Use these coordinates
+          </button>
+        </form>
+
+        <div class="actions">
+          <button id="gpsBtn" class="secondary-btn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="7" />
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+              <circle cx="12" cy="12" r="2" />
+            </svg>
+            Use my location
+          </button>
+          <button id="selectBtn" class="primary-btn" type="button" disabled>
+            <span id="selectBtnLabel">Diagnose this field</span>
+            <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h14" />
+              <path d="m13 6 6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="boundary-row">
+          <button id="drawBoundaryBtn" class="secondary-btn" type="button">
+            Tap corners
+          </button>
+          <button id="freeDrawBtn" class="secondary-btn" type="button">
+            Free draw
+          </button>
+          <button id="clearBoundaryBtn" class="text-btn" type="button" hidden>Clear</button>
+          <span class="boundary-area" id="boundaryArea" hidden></span>
+        </div>
+        <p class="field-hint">
+          Optional: tap each corner, or press Free draw and drag around the field edge.
+          The pin still marks the point used for satellite and soil sampling.
+        </p>
+
+        <p class="status" id="status" aria-live="polite"></p>
+      </section>
+
+      <section class="step" aria-labelledby="stepPriorities">
+        <div class="step-head">
+          <span class="step-no">2</span>
+          <h3 id="stepPriorities">Your priorities</h3>
+          <button class="text-btn" id="balancedBtn" type="button">Reset</button>
+        </div>
+
+        <div class="presets" aria-label="Priority presets">
+          <button class="preset" data-preset="balanced" type="button">Balanced</button>
+          <button class="preset" data-preset="water" type="button">Water-first</button>
+          <button class="preset" data-preset="soil" type="button">Soil-first</button>
+        </div>
+
+        <div class="field-row current-crop">
+          <label for="currentRotation">Current crop / rotation</label>
+          <input
+            id="currentRotation"
+            type="text"
+            maxlength="120"
+            list="cropSuggestions"
+            placeholder="e.g. Rice - Rice, or Cotton - Fallow"
+            autocomplete="off"
+          />
+          <datalist id="cropSuggestions">
+            <option value="Rice - Rice"></option>
+            <option value="Rice - Wheat"></option>
+            <option value="Rice - Groundnut"></option>
+            <option value="Rice - Pulses"></option>
+            <option value="Cotton - Fallow"></option>
+            <option value="Cotton - Wheat"></option>
+            <option value="Maize - Maize"></option>
+            <option value="Maize - Pulses"></option>
+            <option value="Millet (Ragi) - Fallow"></option>
+            <option value="Sorghum - Chickpea"></option>
+            <option value="Pearl millet - Greengram"></option>
+            <option value="Groundnut - Fallow"></option>
+            <option value="Sugarcane (annual)"></option>
+            <option value="Banana (annual)"></option>
+            <option value="Vegetables - Vegetables"></option>
+            <option value="Fallow - Fallow"></option>
+          </datalist>
+          <p class="field-hint">
+            What you grow now. The baseline and every scenario are compared against it.
+          </p>
+        </div>
+
+        <div id="priorityList"></div>
+      </section>
+
+      <section class="step" aria-labelledby="stepContext">
+        <div class="step-head">
+          <span class="step-no">3</span>
+          <h3 id="stepContext">Local soil context</h3>
+          <span class="step-state">Optional</span>
+        </div>
+
+        <div class="form-grid">
+          <div class="field-row">
+            <label for="soilTexture">Soil texture</label>
+            <select id="soilTexture">
+              <option value="">Not sure</option>
+              <option value="Sand">Sand</option>
+              <option value="Sandy loam">Sandy loam</option>
+              <option value="Loam">Loam</option>
+              <option value="Silt loam">Silt loam</option>
+              <option value="Clay loam">Clay loam</option>
+              <option value="Clay">Clay</option>
+              <option value="Black cotton">Black cotton</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <label for="organicMatter">Organic matter</label>
+            <select id="organicMatter">
+              <option value="">Not sure</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <label for="irrigation">Water source</label>
+            <select id="irrigation">
+              <option value="">Not sure</option>
+              <option value="Rain-fed">Rain-fed only</option>
+              <option value="Canal">Canal</option>
+              <option value="Borewell">Borewell</option>
+              <option value="Drip">Drip</option>
+              <option value="Mixed">Mixed</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <label for="fieldSize">Field size (ha)</label>
+            <input id="fieldSize" type="number" min="0.1" max="10000" step="0.1" inputmode="decimal" placeholder="e.g. 1.2" />
+          </div>
+
+          <div class="field-row">
+            <label for="irrigationStatus">Irrigation status</label>
+            <select id="irrigationStatus">
+              <option value="">Not sure</option>
+              <option value="Rain-fed only">Rain-fed only</option>
+              <option value="Irrigated, enough water">Irrigated, enough water</option>
+              <option value="Irrigated, limited water">Irrigated, limited water</option>
+              <option value="Irrigated, surplus water">Irrigated, surplus water</option>
+            </select>
+          </div>
+        </div>
+
+        <details class="soil-test">
+          <summary>Add soil test results (optional)</summary>
+          <div class="form-grid">
+            <div class="field-row">
+              <label for="soilTestPh">pH in water</label>
+              <input id="soilTestPh" type="number" min="0" max="14" step="0.1" inputmode="decimal" placeholder="e.g. 6.8" />
+            </div>
+            <div class="field-row">
+              <label for="soilTestOm">Organic matter (%)</label>
+              <input id="soilTestOm" type="number" min="0" max="25" step="0.1" inputmode="decimal" placeholder="e.g. 1.4" />
+            </div>
+            <div class="field-row">
+              <label for="soilTestN">Nitrogen N (kg/ha)</label>
+              <input id="soilTestN" type="number" min="0" max="5000" step="1" inputmode="numeric" placeholder="e.g. 320" />
+            </div>
+            <div class="field-row">
+              <label for="soilTestP">Phosphorus P (ppm)</label>
+              <input id="soilTestP" type="number" min="0" max="1000" step="1" inputmode="numeric" placeholder="e.g. 14" />
+            </div>
+            <div class="field-row">
+              <label for="soilTestK">Potassium K (ppm)</label>
+              <input id="soilTestK" type="number" min="0" max="5000" step="1" inputmode="numeric" placeholder="e.g. 160" />
+            </div>
+          </div>
+          <p class="field-hint">
+            Your lab values replace the modelled satellite soil estimates where they overlap.
+            N, P and K are never measured by satellite.
+          </p>
+        </details>
+      </section>
+    </div>
+
+    <footer class="dock-foot">
+      <p class="dock-note">
+        <strong>NASA POWER</strong> agro-climatology · NASA GIBS imagery ·
+        OpenLandMap soil · NASA AppEEARS · Esri satellite / OpenStreetMap basemaps · Groq reasoning
+      </p>
+    </footer>
+  </aside>
+
+  <div class="diag-backdrop" id="diagBackdrop" hidden></div>
+  <aside class="diagnosis" id="diagnosisPanel" aria-label="Field vulnerability diagnosis" hidden>
+    <div class="diag-head">
+      <div class="diag-head-text">
+        <p class="eyebrow">Vulnerability diagnosis</p>
+        <h2>What is stressing this field</h2>
+        <p class="diag-place" id="diagnosisPlace">—</p>
+      </div>
+      <button class="diag-close" id="closeDiagnosis" type="button" aria-label="Close diagnosis">×</button>
+    </div>
+
+    <div class="diag-scroll">
+      <div class="diag-inner">
+      <p class="diag-period" id="diagnosisPeriod"></p>
+      <p class="diag-headline" id="diagnosisHeadline"></p>
+
+      <div class="risk-grid" id="riskGrid"></div>
+
+      <p class="diag-section-title">NASA field analytics</p>
+      <div class="analytics-tiles" id="analyticsTiles"></div>
+
+      <p class="diag-section-title">Harmonized data grid</p>
+      <div class="data-grid-wrap" id="dataGrid"></div>
+
+      <p class="diag-section-title">Field-zone vulnerability hotspots</p>
+      <div class="zone-panel">
+        <p class="zone-intro">
+          Sample the field in up to nine zones. Zone differences come from a 90 m
+          elevation model: slope, aspect and low-lying cold-air pooling. Rain,
+          temperature and soil are area signals, so they are the same for every zone.
+        </p>
+        <div class="zone-actions">
+          <button id="zoneBtn" class="secondary-btn" type="button">Analyse field zones</button>
+          <span id="zoneStatus" class="zone-status" aria-live="polite"></span>
+        </div>
+        <div id="zoneResult" aria-live="polite"></div>
+      </div>
+
+      <div class="chart-card">
+        <h4>
+          Rainfall trend
+          <span class="hint-dot" title="Each bar is rain in millimetres. Grey line is estimated crop water demand (ET0). When demand sits above rain, the field is drawing down stored water.">?</span>
+        </h4>
+        <div id="rainChart"></div>
+        <div class="chart-legend">
+          <span><i style="background:#3d6a4b"></i>Rain (mm)</span>
+          <span><i style="background:#b4772a"></i>Estimated ET0 (mm)</span>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h4>
+            Root-zone moisture
+            <span class="hint-dot" title="A 0 to 1 wetness fraction for the top metre of soil from NASA POWER, blended with SMAP satellite samples when available. Not a probe reading.">?</span>
+          </h4>
+          <div id="moistureChart"></div>
+        </div>
+        <div class="chart-card">
+          <h4>
+            Root depth and water
+            <span class="hint-dot" title="Effective root depth is estimated from the USDA texture class. Plant-available water is the water the topsoil can hold between field capacity and wilting point.">?</span>
+          </h4>
+          <div id="rootZoneCard"></div>
+        </div>
+      </div>
+
+      <p class="diag-section-title">Soil nourishment</p>
+      <div class="nourishment-grid" id="nourishmentCard"></div>
+
+      <p class="diag-section-title">Bare-field timeline</p>
+      <div id="bareFieldCard"></div>
+
+      <p class="diag-section-title">Plant health check</p>
+      <div class="disease-panel" id="diseasePanel">
+        <div class="field-row">
+          <label for="diseaseCrop">Crop</label>
+          <input id="diseaseCrop" type="text" maxlength="80" placeholder="e.g. Tomato, Rice, Cotton" autocomplete="off" />
+        </div>
+        <div class="field-row">
+          <label for="diseaseDescription">What changed on the plant?</label>
+          <textarea
+            id="diseaseDescription"
+            maxlength="1500"
+            placeholder="e.g. Yellow spots on the lower leaves with a brown edge, spreading upward after the humid week"
+          ></textarea>
+        </div>
+        <div class="disease-actions">
+          <button id="diseaseBtn" class="primary-btn" type="button">Check plant health</button>
+        </div>
+        <div class="disease-result" id="diseaseResult" aria-live="polite"></div>
+        <p class="safety-note">
+          This is not a laboratory diagnosis. Confirm the problem with a local agronomist
+          or extension officer before buying or applying any chemical.
+        </p>
+      </div>
+
+      <p class="diag-section-title">Soil &amp; satellite readings</p>
+      <div class="field-data" id="fieldData"></div>
+
+      <p class="diag-section-title">How your priorities are weighted</p>
+      <div class="priority-summary" id="prioritySummary"></div>
+
+      <p class="diag-section-title">Data sources for this field</p>
+      <div class="mission-row" id="diagnosisMissions"></div>
+
+      <p class="diag-section-title">Coverage and gaps</p>
+      <details class="coverage">
+        <summary>What this diagnosis can and cannot see</summary>
+        <div class="coverage-body" id="coverageBody"></div>
+      </details>
+      </div>
+    </div>
+
+    <div class="diag-foot">
+      <button id="compareBtn" class="primary-btn" type="button">
+        Compare 3 rotation scenarios
+        <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14" />
+          <path d="m13 6 6 6-6 6" />
+        </svg>
+      </button>
+      <button id="refreshBtn" class="secondary-btn" type="button">Refresh diagnosis</button>
+      <p class="diag-hint">Tip: turn on NASA NDVI in the map layer control to see vegetation.</p>
+    </div>
+  </aside>
+
+  <dialog id="compareDialog" aria-labelledby="compareTitle">
+    <div class="cmp-head">
+      <div class="cmp-head-text">
+        <p class="cmp-eyebrow">Scenario comparison · NASA data + your priorities</p>
+        <h2 id="compareTitle">Three rotations, one baseline</h2>
+        <p class="cmp-sub" id="compareSub">Waiting for a field…</p>
+      </div>
+      <button class="cmp-close" id="closeCompare" type="button" aria-label="Close comparison">×</button>
+    </div>
+
+    <div class="cmp-body" id="compareBody"></div>
+
+    <div class="cmp-foot">
+      <p class="cmp-foot-note">
+        Scores are relative planning signals, not yield forecasts. Confirm seed,
+        water and market choices with a local agronomist.
+      </p>
+      <div class="cmp-foot-actions">
+        <button id="exportBtn" class="secondary-btn" type="button">Export for agronomist</button>
+        <button id="adjustBtn" class="secondary-btn" type="button">Adjust priorities</button>
+        <button id="againBtn" class="secondary-btn" type="button">Compare again</button>
+        <button id="doneCompare" type="button">Back to field</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    "use strict";
+
+    /* --- Tiny helpers ----------------------------------------------------- */
+
+    const $ = (id) => document.getElementById(id);
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined && text !== null) node.textContent = text;
+      return node;
+    }
+
+    function svgIcon(paths) {
+      const wrap = document.createElement("span");
+      wrap.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + "</svg>";
+      return wrap.firstChild;
+    }
+
+    const ARROW = '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>';
+
+    async function postJSON(url, body) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (error) {
+        data = null;
+      }
+      if (!response.ok) {
+        throw new Error((data && data.error) || "Request failed (" + response.status + ")");
+      }
+      return data;
+    }
+
+    function formatNumber(value, digits) {
+      return Number.isFinite(value) ? Number(value).toFixed(digits) : "—";
+    }
+
+    /* --- Priority definitions --------------------------------------------- */
+
+    const PRIORITY_DEFS = [
+      ["water", "Water security", "Drought buffer"],
+      ["soil", "Soil health", "Organic matter and erosion"],
+      ["climate", "Climate resilience", "Heat and rain bursts"],
+      ["income", "Income stability", "Spread market risk"],
+      ["cost", "Input cost", "Seed, feed, fuel"],
+      ["labour", "Labour and time", "Fit your calendar"],
+    ];
+
+    const DEFAULT_PRIORITIES = {
+      water: 4,
+      soil: 3,
+      climate: 4,
+      income: 3,
+      cost: 3,
+      labour: 2,
+    };
+
+    const PRIORITY_PRESETS = {
+      balanced: { water: 4, soil: 3, climate: 4, income: 3, cost: 3, labour: 2 },
+      water: { water: 5, soil: 3, climate: 4, income: 3, cost: 2, labour: 2 },
+      soil: { water: 3, soil: 5, climate: 3, income: 3, cost: 3, labour: 3 },
+    };
+
+    const PRIORITY_LABELS = Object.fromEntries(
+      PRIORITY_DEFS.map(([key, label]) => [key, label]),
+    );
+
+    const DIMENSION_LABELS = {
+      water_security: "Water",
+      soil_health: "Soil",
+      climate_resilience: "Climate",
+      income_stability: "Income",
+      cost_efficiency: "Cost",
+      labour_efficiency: "Labour",
+    };
+
+    const DIMENSION_ORDER = [
+      "water_security",
+      "soil_health",
+      "climate_resilience",
+      "income_stability",
+      "cost_efficiency",
+      "labour_efficiency",
+    ];
+
+    const state = {
+      picked: null,
+      environment: null,
+      diagnostics: null,
+      fieldContext: null,
+      lastResult: null,
+      satellite: null,
+      polygonAreaHa: null,
+      zones: null,
+    };
+
+    /* --- Map -------------------------------------------------------------- */
+
+    const map = L.map("map", { worldCopyJump: true, zoomControl: false }).setView([20, 10], 2);
+
+    const streets = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    });
+
+    const satellite = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      {
+        maxZoom: 19,
+        attribution:
+          "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+      },
+    );
+
+    const terrain = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+      maxZoom: 17,
+      attribution:
+        "&copy; OpenStreetMap contributors, SRTM &middot; Style &copy; OpenTopoMap (CC-BY-SA)",
+    });
+
+    // Satellite is the default so the field edge is visible without relying on
+    // the volunteer OpenTopoMap service, which is sometimes offline.
+    satellite.addTo(map);
+
+    // If the imagery tiles keep failing, fall back to OpenStreetMap so the field
+    // picker stays usable instead of showing a blank map.
+    let satelliteErrors = 0;
+    satellite.on("tileerror", () => {
+      satelliteErrors += 1;
+      if (satelliteErrors >= 6 && map.hasLayer(satellite)) {
+        map.removeLayer(satellite);
+        streets.addTo(map);
+      }
+    });
+
+    let terrainErrors = 0;
+    terrain.on("tileerror", () => {
+      terrainErrors += 1;
+      if (terrainErrors >= 4 && map.hasLayer(terrain)) {
+        map.removeLayer(terrain);
+        streets.addTo(map);
+      }
+    });
+
+    // NASA GIBS: verified MODIS Terra layers. Dates are shifted two days back
+    // because global composites lag behind real time.
+    const gibsDay = (() => {
+      const day = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+      return day.toISOString().slice(0, 10);
+    })();
+
+    function gibsLayer(layer, extension, opacity) {
+      return L.tileLayer(
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/" +
+          layer +
+          "/default/" +
+          gibsDay +
+          "/GoogleMapsCompatible_Level9/{z}/{y}/{x}." +
+          extension,
+        {
+          tileSize: 256,
+          maxNativeZoom: 9,
+          maxZoom: 19,
+          opacity: opacity,
+          attribution: "NASA GIBS / MODIS Terra &middot; " + gibsDay,
+        },
+      );
+    }
+
+    const nasaTrueColour = gibsLayer("MODIS_Terra_CorrectedReflectance_TrueColor", "jpg", 0.9);
+    const nasaNdvi = gibsLayer("MODIS_Terra_NDVI_8Day", "png", 0.8);
+
+    L.control
+      .layers(
+        { Satellite: satellite, Terrain: terrain, Streets: streets },
+        {
+          "NASA true colour (MODIS)": nasaTrueColour,
+          "NASA vegetation NDVI (MODIS)": nasaNdvi,
+        },
+        { position: "topright", collapsed: true },
+      )
+      .addTo(map);
+
+    L.control.zoom({ position: "bottomright" }).addTo(map);
+    L.control.scale({ position: "bottomleft", imperial: false }).addTo(map);
+
+    const leafIcon = L.divIcon({
+      className: "leaf-marker",
+      iconSize: [38, 50],
+      iconAnchor: [19, 48],
+      html:
+        '<svg viewBox="0 0 40 52" width="38" height="50" aria-hidden="true">' +
+        '<path d="M20 51c-2.2 0-4.1-1.6-7.1-5.7C7.3 37.9 2 30.4 2 20.6 2 10.3 10.1 2 20 2s18 8.3 18 18.6c0 9.8-5.3 17.3-10.9 24.7-3 4.1-4.9 5.7-7.1 5.7Z" fill="#1b3a28" stroke="#f7f2e5" stroke-width="2"/>' +
+        '<circle cx="20" cy="20" r="10.5" fill="#f7f2e5"/>' +
+        '<path d="M20 27.5c-5.4-1.4-8.2-5.6-8-11.6 5.6 1.2 8.4 5.4 8 11.6Z" fill="#9db98f"/>' +
+        '<path d="M20 27.5c5.4-1.4 8.2-5.6 8-11.6-5.6 1.2-8.4 5.4-8 11.6Z" fill="#3d6a4b"/>' +
+        '<path d="M20 28.5v-8.5" stroke="#f7f2e5" stroke-width="1.4" stroke-linecap="round"/>' +
+        "</svg>",
+    });
+
+    const coordsEl = $("coords");
+    const coordsEmpty = $("coordsEmpty");
+    const coordsGrid = $("coordsGrid");
+    const latValue = $("latValue");
+    const lngValue = $("lngValue");
+    const accuracyEl = $("accuracyEl");
+    const statusEl = $("status");
+    const selectBtn = $("selectBtn");
+    const selectBtnLabel = $("selectBtnLabel");
+    const gpsBtn = $("gpsBtn");
+    const manualCoordsForm = $("manualCoordsForm");
+    const manualLatInput = $("manualLat");
+    const manualLngInput = $("manualLng");
+    const fieldStateEl = $("fieldState");
+    const fieldSizeInput = $("fieldSize");
+
+    let marker = null;
+    let accuracyCircle = null;
+    let fieldRing = null;
+
+    /* --- Field boundary polygon ------------------------------------------ */
+
+    const drawBoundaryBtn = $("drawBoundaryBtn");
+    const freeDrawBtn = $("freeDrawBtn");
+    const clearBoundaryBtn = $("clearBoundaryBtn");
+    const boundaryAreaEl = $("boundaryArea");
+
+    let drawingBoundary = false;
+    let boundaryIsFreehand = false;
+    let boundaryPoints = [];
+    let boundaryLayer = null;
+    let boundaryMarkers = [];
+    let zoneLayer = null;
+
+    // Free draw state: press and drag to trace the field edge with the pointer.
+    let freeDrawing = false;
+    let freeDrawPoints = [];
+    let freeDrawLine = null;
+    let freeDrawPointerId = null;
+    let suppressMapClickUntil = 0;
+
+    function geodesicAreaHa(points) {
+      if (points.length < 3) return null;
+      const radius = 6378137;
+      const rad = (value) => (value * Math.PI) / 180;
+      let total = 0;
+      for (let index = 0; index < points.length; index += 1) {
+        const first = points[index];
+        const second = points[(index + 1) % points.length];
+        total +=
+          (rad(second.lng) - rad(first.lng)) *
+          (2 + Math.sin(rad(first.lat)) + Math.sin(rad(second.lat)));
+      }
+      return Math.abs((total * radius * radius) / 2) / 10000;
+    }
+
+    function refreshBoundaryLayer() {
+      if (boundaryLayer) {
+        boundaryLayer.remove();
+        boundaryLayer = null;
+      }
+      boundaryMarkers.forEach((dot) => dot.remove());
+      boundaryMarkers = [];
+      if (boundaryPoints.length < 2) return;
+
+      boundaryLayer = L.polygon(boundaryPoints, {
+        color: "#3d6a4b",
+        weight: 2,
+        fillColor: "#9db98f",
+        fillOpacity: 0.18,
+        interactive: false,
+      }).addTo(map);
+
+      // A free-drawn edge can hold dozens of vertices, so only corner mode shows
+      // the small vertex dots; the traced shape itself is enough feedback.
+      if (!boundaryIsFreehand) {
+        boundaryPoints.forEach((point) => {
+          boundaryMarkers.push(
+            L.circleMarker(point, {
+              radius: 4,
+              color: "#f7f2e5",
+              weight: 1.5,
+              fillColor: "#1b3a28",
+              fillOpacity: 1,
+              interactive: false,
+            }).addTo(map),
+          );
+        });
+      }
+    }
+
+    function updateBoundaryArea() {
+      const area = geodesicAreaHa(boundaryPoints);
+      state.polygonAreaHa = area;
+      if (area === null) {
+        boundaryAreaEl.hidden = true;
+        clearBoundaryBtn.hidden = boundaryPoints.length === 0;
+        return;
+      }
+      boundaryAreaEl.hidden = false;
+      if (area > 10000) {
+        boundaryAreaEl.textContent = Math.round(area).toLocaleString() + " ha · zoom in?";
+        boundaryAreaEl.title =
+          "This boundary is far larger than a farm field. Zoom the map in and redraw it around the field edge.";
+      } else {
+        boundaryAreaEl.textContent =
+          area < 1 ? area.toFixed(2) + " ha" : area.toFixed(1) + " ha";
+        boundaryAreaEl.title = "Area inside the drawn field boundary.";
+      }
+      clearBoundaryBtn.hidden = false;
+    }
+
+    function finishBoundary() {
+      if (boundaryPoints.length < 3) {
+        showStatus("Add at least three corners to close the field boundary.", "err");
+        return false;
+      }
+      boundaryIsFreehand = false;
+      drawingBoundary = false;
+      drawBoundaryBtn.textContent = "Redraw corners";
+      drawBoundaryBtn.classList.remove("primary-btn");
+      drawBoundaryBtn.classList.add("secondary-btn");
+      refreshBoundaryLayer();
+      updateBoundaryArea();
+      resetZones();
+      showStatus("Field boundary saved. Diagnose the field to use its area.", "ok");
+      return true;
+    }
+
+    function clearBoundary() {
+      boundaryPoints = [];
+      drawingBoundary = false;
+      boundaryIsFreehand = false;
+      if (boundaryLayer) {
+        boundaryLayer.remove();
+        boundaryLayer = null;
+      }
+      boundaryMarkers.forEach((dot) => dot.remove());
+      boundaryMarkers = [];
+      state.polygonAreaHa = null;
+      boundaryAreaEl.hidden = true;
+      clearBoundaryBtn.hidden = true;
+      drawBoundaryBtn.textContent = "Tap corners";
+      drawBoundaryBtn.classList.add("secondary-btn");
+      resetZones();
+      showStatus("");
+    }
+
+    drawBoundaryBtn.addEventListener("click", () => {
+      if (freeDrawing) cancelFreeDraw();
+      if (drawingBoundary) {
+        finishBoundary();
+        return;
+      }
+      if (boundaryPoints.length >= 3) {
+        clearBoundary();
+      }
+      boundaryIsFreehand = false;
+      drawingBoundary = true;
+      drawBoundaryBtn.textContent = "Finish corners";
+      drawBoundaryBtn.classList.remove("secondary-btn");
+      drawBoundaryBtn.classList.add("primary-btn");
+      showStatus("Tap each corner of the field, then press Finish corners.", "ok");
+    });
+
+    /* --- Free-drawn field boundary ---------------------------------------- */
+
+    function simplifyTraced(points, toleranceMeters) {
+      if (!points || points.length < 4) return points || [];
+      const lat0 = points[0].lat;
+      const metersPerLng = 111320 * Math.max(0.05, Math.cos((lat0 * Math.PI) / 180));
+      const metersPerLat = 110540;
+      const projected = points.map((point) => ({
+        x: point.lng * metersPerLng,
+        y: point.lat * metersPerLat,
+        lat: point.lat,
+        lng: point.lng,
+      }));
+
+      const perpendicular = (point, start, end) => {
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+        const length = Math.hypot(dx, dy);
+        if (length === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+        return Math.abs(dy * point.x - dx * point.y + end.x * start.y - end.y * start.x) / length;
+      };
+
+      const reduce = (list) => {
+        if (list.length < 3) return list;
+        const first = list[0];
+        const last = list[list.length - 1];
+        let maxDistance = -1;
+        let index = 0;
+        for (let i = 1; i < list.length - 1; i += 1) {
+          const distance = perpendicular(list[i], first, last);
+          if (distance > maxDistance) {
+            maxDistance = distance;
+            index = i;
+          }
+        }
+        if (maxDistance > toleranceMeters) {
+          const left = reduce(list.slice(0, index + 1));
+          const right = reduce(list.slice(index));
+          return left.slice(0, -1).concat(right);
+        }
+        return [first, last];
+      };
+
+      const simplified = reduce(projected);
+      // Cap the vertex count so the zone sampler and map stay responsive.
+      if (simplified.length > 48) {
+        const step = (simplified.length - 1) / 47;
+        const capped = [];
+        for (let i = 0; i < 48; i += 1) {
+          capped.push(simplified[Math.round(i * step)]);
+        }
+        return capped.map((point) => ({ lat: point.lat, lng: point.lng }));
+      }
+      return simplified.map((point) => ({ lat: point.lat, lng: point.lng }));
+    }
+
+    function beginFreeDraw() {
+      if (drawingBoundary) {
+        drawingBoundary = false;
+        drawBoundaryBtn.textContent = "Tap corners";
+        drawBoundaryBtn.classList.remove("primary-btn");
+        drawBoundaryBtn.classList.add("secondary-btn");
+      }
+      clearBoundary();
+      freeDrawing = true;
+      freeDrawPoints = [];
+      freeDrawPointerId = null;
+      map.dragging.disable();
+      map.doubleClickZoom.disable();
+      map.getContainer().classList.add("free-draw-active");
+      freeDrawBtn.textContent = "Cancel free draw";
+      freeDrawBtn.classList.remove("secondary-btn");
+      freeDrawBtn.classList.add("primary-btn");
+      showStatus("Press and drag around the field edge, then release near the start.", "ok");
+    }
+
+    function stopFreeDrawChrome() {
+      freeDrawing = false;
+      freeDrawPointerId = null;
+      map.dragging.enable();
+      map.doubleClickZoom.enable();
+      map.getContainer().classList.remove("free-draw-active");
+      freeDrawBtn.textContent = "Free draw";
+      freeDrawBtn.classList.remove("primary-btn");
+      freeDrawBtn.classList.add("secondary-btn");
+      if (freeDrawLine) {
+        freeDrawLine.remove();
+        freeDrawLine = null;
+      }
+      suppressMapClickUntil = Date.now() + 500;
+    }
+
+    function cancelFreeDraw() {
+      freeDrawPoints = [];
+      stopFreeDrawChrome();
+      showStatus("");
+    }
+
+    function commitFreeDraw() {
+      const traced = freeDrawPoints.slice();
+      freeDrawPoints = [];
+      stopFreeDrawChrome();
+
+      const simplified = simplifyTraced(traced, 3.5);
+      if (simplified.length < 3) {
+        showStatus(
+          "That trace was too short. Press Free draw and drag around the field edge.",
+          "err",
+        );
+        return;
+      }
+
+      boundaryPoints = simplified.map((point) => L.latLng(point.lat, point.lng));
+      boundaryIsFreehand = true;
+      refreshBoundaryLayer();
+      updateBoundaryArea();
+      resetZones();
+      showStatus("Free-drawn boundary saved. Diagnose the field to use its area.", "ok");
+    }
+
+    freeDrawBtn.addEventListener("click", () => {
+      if (freeDrawing) {
+        cancelFreeDraw();
+      } else {
+        beginFreeDraw();
+      }
+    });
+
+    const mapContainer = map.getContainer();
+
+    mapContainer.addEventListener("pointerdown", (event) => {
+      if (!freeDrawing || freeDrawPointerId !== null) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      freeDrawPointerId = event.pointerId;
+      try {
+        mapContainer.setPointerCapture(event.pointerId);
+      } catch (error) {
+        /* older browsers may not support capture; dragging still works */
+      }
+      freeDrawPoints = [map.mouseEventToLatLng(event)];
+      freeDrawLine = L.polyline(freeDrawPoints, {
+        color: "#3d6a4b",
+        weight: 2,
+        dashArray: "5 5",
+        interactive: false,
+      }).addTo(map);
+      event.preventDefault();
+    });
+
+    mapContainer.addEventListener("pointermove", (event) => {
+      if (!freeDrawing || event.pointerId !== freeDrawPointerId) return;
+      const point = map.mouseEventToLatLng(event);
+      const last = freeDrawPoints[freeDrawPoints.length - 1];
+      const dx = (point.lng - last.lng) * Math.cos((point.lat * Math.PI) / 180);
+      const dy = point.lat - last.lat;
+      if (Math.hypot(dx, dy) < 0.000012) return; // about 1.3 m
+      freeDrawPoints.push(point);
+      freeDrawLine.setLatLngs(freeDrawPoints);
+      event.preventDefault();
+    });
+
+    mapContainer.addEventListener("pointerup", (event) => {
+      if (!freeDrawing || event.pointerId !== freeDrawPointerId) return;
+      freeDrawPointerId = null;
+      commitFreeDraw();
+      event.preventDefault();
+    });
+
+    mapContainer.addEventListener("pointercancel", (event) => {
+      if (!freeDrawing || event.pointerId !== freeDrawPointerId) return;
+      cancelFreeDraw();
+    });
+
+    clearBoundaryBtn.addEventListener("click", clearBoundary);
+
+    function showStatus(text, kind) {
+      statusEl.textContent = text;
+      statusEl.className = "status" + (kind ? " " + kind : "");
+    }
+
+    function setCoords(lat, lng, gpsAccuracy) {
+      coordsEmpty.hidden = true;
+      coordsGrid.hidden = false;
+      latValue.textContent = lat.toFixed(6);
+      lngValue.textContent = lng.toFixed(6);
+
+      // Keep the manual inputs in sync without stealing what the user is typing.
+      if (document.activeElement !== manualLatInput) {
+        manualLatInput.value = lat.toFixed(6);
+      }
+      if (document.activeElement !== manualLngInput) {
+        manualLngInput.value = lng.toFixed(6);
+      }
+
+      const hasAccuracy = Number.isFinite(gpsAccuracy) && gpsAccuracy > 0;
+      accuracyEl.hidden = !hasAccuracy;
+      accuracyEl.textContent = hasAccuracy ? "GPS accuracy ±" + Math.round(gpsAccuracy) + " m" : "";
+    }
+
+    function ringRadius() {
+      const hectares = parseFloat(fieldSizeInput.value);
+      if (!Number.isFinite(hectares) || hectares <= 0) return 60;
+      const radius = Math.sqrt((hectares * 10000) / Math.PI);
+      return Math.max(12, Math.min(radius, 20000));
+    }
+
+    function drawFieldRing(latlng) {
+      if (!fieldRing) {
+        fieldRing = L.circle(latlng, {
+          radius: ringRadius(),
+          color: "#3d6a4b",
+          weight: 1.4,
+          dashArray: "5 5",
+          fillColor: "#9db98f",
+          fillOpacity: 0.12,
+          interactive: false,
+        }).addTo(map);
+      } else {
+        fieldRing.setLatLng(latlng);
+        fieldRing.setRadius(ringRadius());
+      }
+    }
+
+    function invalidateDiagnosis() {
+      stopSatellitePolling();
+      state.environment = null;
+      state.diagnostics = null;
+      state.lastResult = null;
+      state.satellite = null;
+      resetZones();
+      hideDiagnosis();
+      $("openDiagnosisBtn").hidden = true;
+      fieldStateEl.textContent = "Not diagnosed";
+      fieldStateEl.classList.remove("ready");
+      selectBtnLabel.textContent = "Diagnose this field";
+    }
+
+    function dropPin(lat, lng, gpsAccuracy) {
+      const latlng = [lat, lng];
+      const moved = !state.picked || state.picked.lat !== lat || state.picked.lng !== lng;
+
+      if (moved && state.environment) invalidateDiagnosis();
+
+      if (marker) {
+        marker.setLatLng(latlng);
+      } else {
+        marker = L.marker(latlng, {
+          draggable: true,
+          icon: leafIcon,
+          title: "Your field — drag to adjust",
+        }).addTo(map);
+
+        marker.on("drag", () => {
+          const position = marker.getLatLng();
+          setCoords(position.lat, position.lng, null);
+        });
+
+        marker.on("dragend", () => {
+          const position = marker.getLatLng();
+          dropPin(position.lat, position.lng, null);
+          showStatus("");
+        });
+      }
+
+      if (accuracyCircle) {
+        accuracyCircle.remove();
+        accuracyCircle = null;
+      }
+
+      state.picked = { lat: lat, lng: lng };
+      const hasAccuracy = Number.isFinite(gpsAccuracy) && gpsAccuracy > 0;
+      if (hasAccuracy) {
+        state.picked.accuracy = gpsAccuracy;
+        accuracyCircle = L.circle(latlng, {
+          radius: gpsAccuracy,
+          color: "#3d6a4b",
+          weight: 1.2,
+          fillColor: "#9db98f",
+          fillOpacity: 0.14,
+        }).addTo(map);
+      }
+
+      drawFieldRing(latlng);
+      setCoords(lat, lng, hasAccuracy ? gpsAccuracy : null);
+      selectBtn.disabled = false;
+      fieldStateEl.textContent = "Ready";
+      fieldStateEl.classList.add("ready");
+    }
+
+    map.on("click", (event) => {
+      if (freeDrawing || Date.now() < suppressMapClickUntil) return;
+      if (drawingBoundary) {
+        boundaryPoints.push(event.latlng);
+        refreshBoundaryLayer();
+        updateBoundaryArea();
+        showStatus(
+          boundaryPoints.length < 3
+            ? "Add at least three corners."
+            : "Press Finish boundary to close the shape.",
+        );
+        return;
+      }
+      dropPin(event.latlng.lat, event.latlng.lng, null);
+      showStatus("");
+    });
+
+    /* --- Manual latitude / longitude -------------------------------------- */
+
+    function applyManualCoords() {
+      const latText = manualLatInput.value.trim();
+      const lngText = manualLngInput.value.trim();
+
+      if (latText === "" || lngText === "") {
+        showStatus("Enter both a latitude and a longitude.", "err");
+        return;
+      }
+
+      const lat = Number(latText);
+      const lng = Number(lngText);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        showStatus("Coordinates must be numbers, for example 9.9252 and 78.1198.", "err");
+        return;
+      }
+      if (lat < -90 || lat > 90) {
+        showStatus("Latitude must be between -90 and 90.", "err");
+        manualLatInput.focus();
+        return;
+      }
+      if (lng < -180 || lng > 180) {
+        showStatus("Longitude must be between -180 and 180.", "err");
+        manualLngInput.focus();
+        return;
+      }
+
+      map.setView([lat, lng], Math.max(map.getZoom(), 11));
+      dropPin(lat, lng, null);
+      diagnoseField({ openPanel: true });
+    }
+
+    manualCoordsForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      applyManualCoords();
+    });
+
+    /* --- Priorities UI ---------------------------------------------------- */
+
+    function buildPriorities() {
+      const list = $("priorityList");
+      list.replaceChildren();
+
+      PRIORITY_DEFS.forEach(([key, label, hint]) => {
+        const row = el("div", "priority-row");
+
+        const labelEl = el("label", "priority-label");
+        labelEl.htmlFor = "priority-" + key;
+        labelEl.append(document.createTextNode(label));
+        labelEl.append(el("span", null, hint));
+
+        const input = document.createElement("input");
+        input.type = "range";
+        input.id = "priority-" + key;
+        input.min = "0";
+        input.max = "5";
+        input.step = "1";
+        input.value = String(DEFAULT_PRIORITIES[key]);
+        input.setAttribute("aria-label", label + " importance");
+
+        const value = el("output", "p-value", input.value);
+        value.htmlFor = input.id;
+
+        input.addEventListener("input", () => {
+          value.textContent = input.value;
+          refreshPriorityChips();
+        });
+
+        row.append(labelEl, input, value);
+        list.append(row);
+      });
+    }
+
+    function setPriorities(values) {
+      PRIORITY_DEFS.forEach(([key]) => {
+        const input = $("priority-" + key);
+        if (!input) return;
+        input.value = String(values[key]);
+        const output = input.parentElement.querySelector(".p-value");
+        if (output) output.textContent = input.value;
+      });
+    }
+
+    function collectPriorities() {
+      const priorities = {};
+      PRIORITY_DEFS.forEach(([key]) => {
+        const input = $("priority-" + key);
+        priorities[key] = input ? Number(input.value) : DEFAULT_PRIORITIES[key];
+      });
+      return priorities;
+    }
+
+    function numberOrNull(inputId) {
+      const input = $(inputId);
+      if (!input) return null;
+      const value = parseFloat(input.value);
+      return Number.isFinite(value) ? value : null;
+    }
+
+    function collectContext() {
+      const size = parseFloat(fieldSizeInput.value);
+      return {
+        soil_texture: $("soilTexture").value,
+        organic_matter: $("organicMatter").value,
+        irrigation: $("irrigation").value,
+        irrigation_status: $("irrigationStatus") ? $("irrigationStatus").value : "",
+        field_size_ha: Number.isFinite(size) && size > 0 ? size : null,
+        current_rotation: $("currentRotation").value.trim(),
+        polygon_area_ha: state.polygonAreaHa,
+        soil_test_ph: numberOrNull("soilTestPh"),
+        soil_test_om: numberOrNull("soilTestOm"),
+        soil_test_n: numberOrNull("soilTestN"),
+        soil_test_p: numberOrNull("soilTestP"),
+        soil_test_k: numberOrNull("soilTestK"),
+      };
+    }
+
+    document.querySelectorAll(".preset").forEach((button) => {
+      button.addEventListener("click", () => {
+        const preset = PRIORITY_PRESETS[button.dataset.preset];
+        if (preset) setPriorities(preset);
+      });
+    });
+
+    $("balancedBtn").addEventListener("click", () => setPriorities(PRIORITY_PRESETS.balanced));
+
+    fieldSizeInput.addEventListener("input", () => {
+      if (fieldRing && state.picked) fieldRing.setRadius(ringRadius());
+    });
+
+    /* --- Diagnosis panel -------------------------------------------------- */
+
+    const LEVEL_LABEL = { low: "Low", moderate: "Watch", high: "High" };
+
+    function refreshPriorityChips() {
+      const summary = $("prioritySummary");
+      if (!summary) return;
+      const priorities = collectPriorities();
+      summary.replaceChildren();
+      PRIORITY_DEFS.forEach(([key, label]) => {
+        const chip = el("span", "priority-chip");
+        chip.append(document.createTextNode(label.split(" ")[0] + " "));
+        chip.append(el("b", null, String(priorities[key])));
+        chip.append(document.createTextNode("/5"));
+        summary.append(chip);
+      });
+    }
+
+    function renderRiskCard(indicator) {
+      const card = el("article", "risk-card level-" + indicator.level);
+
+      const top = el("div", "risk-top");
+      top.append(el("h4", null, indicator.label));
+      top.append(el("span", "level-pill level-" + indicator.level, LEVEL_LABEL[indicator.level] || indicator.level));
+
+      card.append(top);
+      card.append(el("p", "risk-value", indicator.value));
+      card.append(el("p", "risk-evidence", indicator.evidence));
+
+      if (Array.isArray(indicator.missions) && indicator.missions.length) {
+        const missions = el("div", "mission-row");
+        indicator.missions.forEach((mission) => missions.append(el("span", "mission-chip", mission)));
+        card.append(missions);
+      }
+
+      return card;
+    }
+
+    function renderCoverage(coverage) {
+      const body = $("coverageBody");
+      body.replaceChildren();
+      if (!coverage) return;
+
+      const available = Array.isArray(coverage.available) ? coverage.available : [];
+      const missing = Array.isArray(coverage.missing) ? coverage.missing : [];
+
+      if (available.length) {
+        body.append(el("h5", null, "Signals in this diagnosis"));
+        const list = document.createElement("ul");
+        available.forEach((item) => list.append(el("li", null, item)));
+        body.append(list);
+      }
+
+      if (missing.length) {
+        body.append(el("h5", null, "Not measured here"));
+        const list = document.createElement("ul");
+        missing.forEach((item) => list.append(el("li", null, item)));
+        body.append(list);
+      }
+
+      if (coverage.note) body.append(el("p", "coverage-note", coverage.note));
+    }
+
+    const GRID_STATUS_LABEL = {
+      ok: "Measured",
+      gap: "Gap",
+      pending: "Processing",
+      not_queried: "Not queried",
+      input: "Optional input",
+    };
+
+    function renderDataGrid(grid) {
+      const body = $("dataGrid");
+      if (!body) return;
+      body.replaceChildren();
+      if (!grid || !Array.isArray(grid.rows) || !grid.rows.length) {
+        body.append(el("p", "chart-empty", "No harmonized grid rows for this field."));
+        return;
+      }
+
+      const table = el("table", "data-grid");
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      ["Mission", "Variable", "Native scale", "Value", "Status", "Note"].forEach((label) => {
+        headRow.append(el("th", null, label));
+      });
+      thead.append(headRow);
+      table.append(thead);
+
+      const tbody = document.createElement("tbody");
+      grid.rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        tr.append(el("td", "dg-mission", row.mission || "—"));
+        tr.append(el("td", null, row.variable || "—"));
+        tr.append(el("td", "dg-res", row.resolution || "—"));
+        tr.append(el("td", null, row.value || "—"));
+        const statusCell = document.createElement("td");
+        const status = String(row.status || "gap");
+        statusCell.append(
+          el("span", "dg-pill " + status, GRID_STATUS_LABEL[status] || status),
+        );
+        tr.append(statusCell);
+        tr.append(el("td", "dg-note", row.note || ""));
+        tbody.append(tr);
+      });
+      table.append(tbody);
+      body.append(table);
+      if (grid.note) body.append(el("p", "zone-note", grid.note));
+    }
+
+    const ZONE_COLORS = {
+      erosion: "#b4552d",
+      frost: "#4a7fa5",
+      moisture: "#b4772a",
+      heat: "#9c3b2e",
+    };
+
+    function clearZoneLayer() {
+      if (zoneLayer) {
+        zoneLayer.remove();
+        zoneLayer = null;
+      }
+    }
+
+    function resetZones() {
+      state.zones = null;
+      clearZoneLayer();
+      const result = $("zoneResult");
+      if (result) result.replaceChildren();
+      const status = $("zoneStatus");
+      if (status) status.textContent = "";
+    }
+
+    function renderZones(result) {
+      const body = $("zoneResult");
+      if (!body) return;
+      body.replaceChildren();
+      clearZoneLayer();
+
+      if (!result || !result.available) {
+        body.append(
+          el("p", "chart-empty", (result && result.note) || "Zone analysis did not return."),
+        );
+        return;
+      }
+
+      zoneLayer = L.layerGroup().addTo(map);
+      const grid = el("div", "zone-grid");
+
+      (result.zones || []).forEach((zone, index) => {
+        const color = ZONE_COLORS[zone.dominant] || "#6f8f4e";
+        L.circleMarker([zone.lat, zone.lng], {
+          radius: 9,
+          color: "#f7f2e5",
+          weight: 1.5,
+          fillColor: color,
+          fillOpacity: 0.85,
+        })
+          .bindTooltip(
+            "Zone " +
+              (index + 1) +
+              " · " +
+              zone.dominant_label +
+              " · slope " +
+              zone.slope_pct +
+              "%",
+          )
+          .addTo(zoneLayer);
+
+        const card = el("article", "zone-card level-" + (zone.level || "low"));
+        card.append(
+          el(
+            "h5",
+            null,
+            "Zone " + (index + 1) + " · " + zone.dominant_label,
+          ),
+        );
+        card.append(
+          el(
+            "p",
+            "zone-elev",
+            formatNumber(zone.elevation_m, 0) +
+              " m (" +
+              (zone.relative_elevation_m >= 0 ? "+" : "") +
+              formatNumber(zone.relative_elevation_m, 1) +
+              " m vs field mean) · " +
+              formatNumber(zone.slope_pct, 1) +
+              "% slope",
+          ),
+        );
+        [
+          ["Erosion", zone.risks.erosion],
+          ["Frost", zone.risks.frost],
+          ["Moisture", zone.risks.moisture],
+          ["Heat", zone.risks.heat],
+        ].forEach(([label, value]) => {
+          const row = el("div", "zone-risk-row");
+          row.append(el("span", null, label));
+          row.append(el("b", null, String(value) + "/100"));
+          card.append(row);
+        });
+        grid.append(card);
+      });
+
+      body.append(grid);
+      if (result.summary) body.append(el("p", "zone-summary", result.summary));
+      if (result.note) body.append(el("p", "zone-note", result.note));
+    }
+
+    async function runZoneAnalysis() {
+      if (!state.picked) {
+        showStatus("Pick a field on the map first.", "err");
+        return;
+      }
+      const button = $("zoneBtn");
+      const status = $("zoneStatus");
+      button.disabled = true;
+      status.textContent = "Sampling terrain zones…";
+
+      try {
+        const result = await postJSON("/zones", {
+          lat: state.picked.lat,
+          lng: state.picked.lng,
+          points: boundaryPoints.map((point) => ({ lat: point.lat, lng: point.lng })),
+          context: collectContext(),
+        });
+        state.zones = result;
+        renderZones(result);
+        status.textContent = result.available
+          ? result.zone_count + " zones analysed."
+          : "Zone analysis unavailable.";
+      } catch (error) {
+        resetZones();
+        status.textContent = "";
+        $("zoneResult").append(
+          el("p", "chart-empty", "Could not analyse field zones: " + error.message),
+        );
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function fieldRow(label, value) {
+      const row = el("div", "fd-row");
+      row.append(el("span", "fd-label", label));
+      row.append(el("span", "fd-value", value));
+      return row;
+    }
+
+    function soilReading(value, unit, digits) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return "n/a";
+      }
+      const text = Number(value).toFixed(digits === undefined ? 1 : digits);
+      return unit ? text + " " + unit : text;
+    }
+
+    function renderFieldData() {
+      const body = $("fieldData");
+      if (!body) return;
+      body.replaceChildren();
+
+      const environment = state.environment || {};
+      const soil = environment.soil || {};
+      const satellite = state.satellite || environment.satellite || {};
+
+      // Measured soil from OpenLandMap SoilDB (0-30 cm, 120 m).
+      const soilCard = el("article", "fd-card");
+      soilCard.append(el("h4", null, "Soil (0-30 cm)"));
+      if (soil.available) {
+        soilCard.append(fieldRow("Texture", soil.texture_class || "not returned"));
+        soilCard.append(
+          fieldRow(
+            "Sand / clay / silt",
+            [soil.sand_pct, soil.clay_pct, soil.silt_pct]
+              .map((value) => (value === null || value === undefined ? "n/a" : value + "%"))
+              .join(" / ")
+          )
+        );
+        soilCard.append(fieldRow("pH in water", soilReading(soil.ph, "", 1)));
+        soilCard.append(
+          fieldRow(
+            "Organic matter",
+            soil.organic_matter_pct === null || soil.organic_matter_pct === undefined
+              ? "n/a"
+              : soil.organic_matter_pct + "% (" + (soil.organic_matter_class || "n/a") + ")"
+          )
+        );
+        soilCard.append(
+          fieldRow("Bulk density", soilReading(soil.bulk_density_g_cm3, "g/cm3", 2))
+        );
+        soilCard.append(
+          el("p", "fd-source", soil.source || "OpenLandMap SoilDB 2020-2022")
+        );
+      } else {
+        soilCard.append(
+          el(
+            "p",
+            "fd-note",
+            "Soil values did not load for this point. The diagnosis falls back to the soil context you entered."
+          )
+        );
+      }
+      body.append(soilCard);
+
+      // Optional AppEEARS MODIS/SMAP point sample.
+      const satCard = el("article", "fd-card");
+      satCard.append(el("h4", null, "Satellite point sample"));
+      const status = satellite.status || "idle";
+      satCard.append(el("span", "fd-status status-" + status, status));
+
+      const readings = satellite.readings || {};
+      const keys = Object.keys(readings);
+      if (keys.length) {
+        keys.forEach((key) => {
+          const item = readings[key] || {};
+          satCard.append(
+            fieldRow(
+              item.label || key,
+              soilReading(item.mean, item.unit || "", 3)
+            )
+          );
+        });
+      } else {
+        satCard.append(
+          el(
+            "p",
+            "fd-note",
+            satellite.message || "No satellite sample has been started yet."
+          )
+        );
+      }
+      satCard.append(
+        el("p", "fd-source", "NASA AppEEARS (MODIS / SMAP) · last 60 days")
+      );
+      body.append(satCard);
+    }
+
+    /* --- NASA analytics charts -------------------------------------------- */
+
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    function svgEl(tag, attrs) {
+      const node = document.createElementNS(SVG_NS, tag);
+      Object.entries(attrs || {}).forEach(([key, value]) => node.setAttribute(key, value));
+      return node;
+    }
+
+    function emptyChart(text) {
+      return el("p", "chart-empty", text);
+    }
+
+    function analyticsTile(label, value, note, hint) {
+      const tile = el("article", "analytics-tile");
+      const labelEl = el("p", "at-label");
+      labelEl.append(document.createTextNode(label));
+      if (hint) {
+        const dot = el("span", "hint-dot", "?");
+        dot.title = hint;
+        labelEl.append(dot);
+      }
+      tile.append(labelEl);
+      tile.append(el("p", "at-value", value));
+      if (note) tile.append(el("p", "at-note", note));
+      return tile;
+    }
+
+    function formatMm(value) {
+      return Number.isFinite(value) ? Number(value).toFixed(0) + " mm" : "n/a";
+    }
+
+    function buildRainChart(climate) {
+      const daily = (climate && climate.daily) || [];
+      if (!daily.length) return emptyChart("No daily NASA POWER values for this window.");
+      const width = 340;
+      const height = 116;
+      const padL = 4;
+      const padR = 4;
+      const padT = 8;
+      const padB = 18;
+      const plotW = width - padL - padR;
+      const plotH = height - padT - padB;
+      const max = Math.max(
+        1,
+        ...daily.map((day) => Math.max(Number(day.rain_mm) || 0, Number(day.et0_mm) || 0)),
+      );
+      const step = plotW / daily.length;
+      const barW = Math.max(1, step * 0.62);
+
+      const svg = svgEl("svg", {
+        viewBox: "0 0 " + width + " " + height,
+        class: "chart-svg",
+        role: "img",
+        "aria-label": "Daily rainfall and estimated crop water demand",
+      });
+
+      daily.forEach((day, index) => {
+        const rain = Number(day.rain_mm) || 0;
+        const barH = (rain / max) * plotH;
+        const x = padL + index * step + (step - barW) / 2;
+        svg.append(
+          svgEl("rect", {
+            x: x.toFixed(1),
+            y: (padT + plotH - barH).toFixed(1),
+            width: barW.toFixed(1),
+            height: Math.max(0.6, barH).toFixed(1),
+            rx: 1,
+            fill: "#3d6a4b",
+            opacity: rain > 0 ? "0.9" : "0.25",
+          }),
+        );
+      });
+
+      const points = daily
+        .map((day, index) => {
+          const value = Number(day.et0_mm);
+          if (!Number.isFinite(value)) return null;
+          const x = padL + index * step + step / 2;
+          const y = padT + plotH - (value / max) * plotH;
+          return x.toFixed(1) + "," + y.toFixed(1);
+        })
+        .filter(Boolean);
+      if (points.length) {
+        svg.append(
+          svgEl("polyline", {
+            points: points.join(" "),
+            fill: "none",
+            stroke: "#b4772a",
+            "stroke-width": "1.4",
+            "stroke-linejoin": "round",
+          }),
+        );
+      }
+
+      svg.append(
+        svgEl("line", {
+          x1: padL,
+          y1: padT + plotH,
+          x2: width - padR,
+          y2: padT + plotH,
+          stroke: "#cfc8b2",
+          "stroke-width": "1",
+        }),
+      );
+
+      const labelStyle = { fill: "#8d9787", "font-size": "8", "font-family": "IBM Plex Mono, monospace" };
+      const first = svgEl("text", { x: padL, y: height - 4, ...labelStyle });
+      first.textContent = daily[0].date.slice(5);
+      const last = svgEl("text", { x: width - padR, y: height - 4, "text-anchor": "end", ...labelStyle });
+      last.textContent = daily[daily.length - 1].date.slice(5);
+      const peak = svgEl("text", { x: width - padR, y: padT + 8, "text-anchor": "end", ...labelStyle });
+      peak.textContent = "peak " + max.toFixed(0) + " mm";
+      svg.append(first, last, peak);
+      return svg;
+    }
+
+    function buildMoistureChart(moisture) {
+      const daily = (moisture && moisture.daily) || [];
+      const readings = (state.satellite && state.satellite.readings) || {};
+      const smap = (readings.sm_surface && readings.sm_surface.series) || [];
+      if (!daily.length && !smap.length) {
+        return emptyChart("No root-zone moisture series for this window.");
+      }
+      const width = 320;
+      const height = 104;
+      const padL = 4;
+      const padR = 4;
+      const padT = 8;
+      const padB = 16;
+      const plotW = width - padL - padR;
+      const plotH = height - padT - padB;
+
+      const svg = svgEl("svg", {
+        viewBox: "0 0 " + width + " " + height,
+        class: "chart-svg",
+        role: "img",
+        "aria-label": "Root-zone wetness over time",
+      });
+
+      [0.25, 0.5, 0.75].forEach((level) => {
+        const y = padT + plotH - level * plotH;
+        svg.append(
+          svgEl("line", {
+            x1: padL,
+            y1: y.toFixed(1),
+            x2: width - padR,
+            y2: y.toFixed(1),
+            stroke: "#e1dbc8",
+            "stroke-width": "1",
+            "stroke-dasharray": "3 4",
+          }),
+        );
+      });
+
+      if (daily.length) {
+        const step = plotW / Math.max(1, daily.length - 1);
+        const points = daily
+          .map((point, index) => {
+            const value = Number(point.value);
+            if (!Number.isFinite(value)) return null;
+            const x = padL + index * step;
+            const y = padT + plotH - Math.max(0, Math.min(1, value)) * plotH;
+            return x.toFixed(1) + "," + y.toFixed(1);
+          })
+          .filter(Boolean);
+        if (points.length > 1) {
+          svg.append(
+            svgEl("polyline", {
+              points: points.join(" "),
+              fill: "none",
+              stroke: "#3d6a4b",
+              "stroke-width": "1.8",
+              "stroke-linejoin": "round",
+            }),
+          );
+        }
+      }
+
+      if (smap.length) {
+        const step = plotW / Math.max(1, smap.length - 1);
+        smap.forEach((point, index) => {
+          const value = Number(point.value);
+          if (!Number.isFinite(value)) return;
+          const x = padL + index * step;
+          const y = padT + plotH - Math.max(0, Math.min(1, value)) * plotH;
+          svg.append(
+            svgEl("circle", {
+              cx: x.toFixed(1),
+              cy: y.toFixed(1),
+              r: "2.4",
+              fill: "#b4772a",
+            }),
+          );
+        });
+      }
+
+      svg.append(
+        svgEl("line", {
+          x1: padL,
+          y1: padT + plotH,
+          x2: width - padR,
+          y2: padT + plotH,
+          stroke: "#cfc8b2",
+          "stroke-width": "1",
+        }),
+      );
+      return svg;
+    }
+
+    function renderRootZone(rootZone, moisture) {
+      const body = $("rootZoneCard");
+      body.replaceChildren();
+      if (!rootZone) {
+        body.append(emptyChart("Root-zone estimate unavailable."));
+        return;
+      }
+      const list = el("ul", "root-zone-list");
+      [
+        ["Texture class", rootZone.texture || "unclassified"],
+        ["Effective root depth", formatNumber(rootZone.depth_cm, 0) + " cm"],
+        ["Plant-available water", formatNumber(rootZone.awc_mm, 0) + " mm"],
+        [
+          "Surface-to-root gradient",
+          Number.isFinite(rootZone.gradient)
+            ? formatNumber(rootZone.gradient, 3)
+            : "n/a",
+        ],
+      ].forEach(([label, value]) => {
+        const item = document.createElement("li");
+        item.append(el("span", null, label));
+        item.append(el("b", null, value));
+        list.append(item);
+      });
+      body.append(list);
+
+      const bar = el("div", "root-bar");
+      const marker = document.createElement("span");
+      const depth = Number(rootZone.depth_cm) || 100;
+      marker.style.left = Math.max(0, Math.min(100, (depth / 150) * 100)) + "%";
+      marker.title = "Estimated effective root depth";
+      bar.append(marker);
+      body.append(bar);
+      body.append(
+        el(
+          "p",
+          "barefield-note",
+          (moisture && moisture.gradient_note) || rootZone.basis || "",
+        ),
+      );
+    }
+
+    function renderNourishment(nourishment) {
+      const body = $("nourishmentCard");
+      body.replaceChildren();
+      if (!nourishment || !nourishment.items || !nourishment.items.length) {
+        body.append(emptyChart("No soil nourishment values for this field."));
+        return;
+      }
+      nourishment.items.forEach((item) => {
+        const card = el("article", "nourish-item status-" + (item.status || "unknown"));
+        card.append(el("h5", null, item.label));
+        card.append(el("p", "nv", item.value));
+        if (item.note) card.append(el("p", "note", item.note));
+        body.append(card);
+      });
+    }
+
+    function renderBareField(bareField) {
+      const body = $("bareFieldCard");
+      body.replaceChildren();
+      if (!bareField) {
+        body.append(emptyChart("No bare-field data for this field."));
+        return;
+      }
+
+      const hasSeries =
+        bareField.observed_available &&
+        Array.isArray(bareField.series) &&
+        bareField.series.length > 0;
+
+      if (hasSeries) {
+        const row = el("div", "barefield-row");
+        bareField.series.forEach((point) => {
+          const value = Math.max(0, Math.min(1, Number(point.value) || 0));
+          const bar = el("span", "barefield-bar" + (value < 0.25 ? " low-cover" : ""));
+          bar.style.height = Math.max(4, value * 100) + "%";
+          bar.title = point.date + " · NDVI " + value.toFixed(2);
+          row.append(bar);
+        });
+        body.append(row);
+        const low = bareField.low_cover_count || (bareField.low_cover_samples || []).length;
+        body.append(
+          el(
+            "p",
+            "barefield-note",
+            low
+              ? low + " low-cover sample(s) below NDVI 0.25. Red bars are the exposed windows."
+              : "No low-cover window below NDVI 0.25 in this sample.",
+          ),
+        );
+      } else {
+        body.append(
+          emptyChart(
+            "No NDVI series yet. Bare-field bars appear once the AppEEARS satellite sample completes; the seasonal windows below come from NASA POWER.",
+          ),
+        );
+      }
+
+      const windows = bareField.seasonal_windows || [];
+      if (windows.length) {
+        body.append(
+          el("h5", null, "Historical dry-hot exposure windows (last 12 months)"),
+        );
+        const list = el("ul", "barefield-list");
+        windows.forEach((window) => {
+          list.append(
+            el(
+              "li",
+              null,
+              window.label +
+                " · " +
+                formatNumber(window.rain_mm, 0) +
+                " mm rain · mean peak " +
+                formatNumber(window.mean_tmax_c, 1) +
+                " C. " +
+                (window.note || ""),
+            ),
+          );
+        });
+        body.append(list);
+      } else if (bareField.seasonal_available) {
+        body.append(
+          el("p", "barefield-note", "No dry-hot month run in the last 12 months."),
+        );
+      }
+
+      if (bareField.first_frost || bareField.last_frost) {
+        body.append(
+          el(
+            "p",
+            "barefield-note",
+            "Nights below 2 C in the last 12 months: first " +
+              (bareField.first_frost || "none") +
+              ", last " +
+              (bareField.last_frost || "none") +
+              (bareField.frost_months && bareField.frost_months.length
+                ? " · months: " + bareField.frost_months.join(", ")
+                : "") +
+              ".",
+          ),
+        );
+      }
+
+      if (bareField.note) body.append(el("p", "barefield-note", bareField.note));
+    }
+
+    function renderAnalytics(diagnostics) {
+      const tiles = $("analyticsTiles");
+      const rainChart = $("rainChart");
+      const moistureChart = $("moistureChart");
+      if (!tiles || !rainChart || !moistureChart) return;
+
+      tiles.replaceChildren();
+      rainChart.replaceChildren();
+      moistureChart.replaceChildren();
+
+      const climate = diagnostics && diagnostics.climate;
+      const moisture = diagnostics && diagnostics.moisture;
+      const nasa = (state.environment && state.environment.nasa) || {};
+
+      if (!climate || !climate.available) {
+        tiles.append(analyticsTile("Climate", "n/a", "NASA POWER window unavailable"));
+        rainChart.append(emptyChart("No climate analytics for this field."));
+        moistureChart.append(emptyChart("No moisture analytics for this field."));
+      } else {
+        tiles.append(
+          analyticsTile(
+            "Wind",
+            formatNumber(nasa.wind_speed_ms, 1) + " m/s",
+            "peak " + formatNumber(climate.wind_max_ms, 1) + " m/s",
+            "Mean and peak wind in the window. Strong wind dries soil and can flatten tall crops.",
+          ),
+        );
+        tiles.append(
+          analyticsTile(
+            "Sunlight",
+            formatNumber(nasa.solar_radiation_mj_m2_day, 1) + " MJ",
+            "peak " + formatNumber(climate.solar_max_mj, 1) + " MJ/m2/day",
+            "Solar radiation reaching the crop. More sunlight means more water demand.",
+          ),
+        );
+        tiles.append(
+          analyticsTile(
+            "Dry spell",
+            String(climate.longest_dry_spell_days) + " days",
+            climate.current_dry_spell_days + " dry days now",
+            "A dry day has under 1 mm of rain. The longest run shows the biggest gap in the window.",
+          ),
+        );
+        tiles.append(
+          analyticsTile(
+            "Water balance",
+            formatMm(climate.water_balance_mm),
+            climate.water_balance_label,
+            "Rain minus estimated crop water demand (ET0). Negative means the crop needs stored water or irrigation.",
+          ),
+        );
+        tiles.append(
+          analyticsTile(
+            "Rain trend",
+            climate.rain_trend || "n/a",
+            formatNumber(climate.rain_change_mm, 0) + " mm week on week",
+            "Compares the last 7 days with the 7 days before it.",
+          ),
+        );
+        tiles.append(
+          analyticsTile(
+            "Heat days",
+            String(climate.heat_days_35c),
+            "days above 35 C",
+            "Days where the maximum temperature passed 35 C, when many crops slow down.",
+          ),
+        );
+
+        rainChart.append(buildRainChart(climate));
+        moistureChart.append(buildMoistureChart(moisture));
+      }
+
+      renderRootZone(diagnostics && diagnostics.root_zone, moisture);
+      renderNourishment(diagnostics && diagnostics.nourishment);
+      renderBareField(diagnostics && diagnostics.bare_field);
+    }
+
+    let satelliteTimer = null;
+
+    function stopSatellitePolling() {
+      if (satelliteTimer) {
+        clearTimeout(satelliteTimer);
+        satelliteTimer = null;
+      }
+    }
+
+    async function refreshDiagnosisAfterSatellite() {
+      if (!state.picked) return;
+      try {
+        const data = await postJSON("/select", {
+          lat: state.picked.lat,
+          lng: state.picked.lng,
+          accuracy: state.picked.accuracy,
+          context: state.fieldContext || collectContext(),
+        });
+        state.environment = data.environment || state.environment;
+        state.diagnostics = data.diagnostics || state.diagnostics;
+        state.satellite = data.satellite || state.satellite;
+        renderDiagnosis();
+      } catch (error) {
+        // Keep the last diagnosis; the satellite card already shows the failure.
+      }
+    }
+
+    function startSatellitePolling() {
+      stopSatellitePolling();
+      const satellite = state.satellite;
+      if (!satellite || !state.picked) return;
+      if (!["queued", "running"].includes(satellite.status)) return;
+
+      const lat = state.picked.lat;
+      const lng = state.picked.lng;
+      const startedAt = Date.now();
+
+      // AppEEARS queues can take tens of minutes; poll quickly at first, then
+      // back off so the page is not hammering the server.
+      const nextDelay = () => (Date.now() - startedAt < 60000 ? 6000 : 20000);
+
+      const tick = async () => {
+        satelliteTimer = null;
+        const previous = state.satellite && state.satellite.status;
+        try {
+          const response = await fetch(
+            "/satellite?lat=" + encodeURIComponent(lat) + "&lng=" + encodeURIComponent(lng)
+          );
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Satellite status failed");
+          state.satellite = data.satellite || null;
+          renderFieldData();
+
+          const next = state.satellite && state.satellite.status;
+          if (next && ["queued", "running"].includes(next)) {
+            satelliteTimer = setTimeout(tick, nextDelay());
+          } else if (
+            ["queued", "running"].includes(previous) &&
+            ["done", "error"].includes(next)
+          ) {
+            // Pull a fresh diagnosis so coverage and gaps reflect the new sample.
+            refreshDiagnosisAfterSatellite();
+          }
+        } catch (error) {
+          satelliteTimer = setTimeout(tick, 20000);
+        }
+      };
+
+      satelliteTimer = setTimeout(tick, 4000);
+    }
+
+    function renderDiagnosis() {
+      const environment = state.environment;
+      const diagnostics = state.diagnostics;
+
+      const placeName = environment && environment.location && environment.location.name;
+      if (placeName) {
+        $("diagnosisPlace").textContent = placeName;
+      } else if (state.picked) {
+        $("diagnosisPlace").textContent =
+          formatNumber(state.picked.lat, 4) + ", " + formatNumber(state.picked.lng, 4);
+      } else {
+        $("diagnosisPlace").textContent = "No field selected";
+      }
+
+      const period = (environment && environment.nasa && environment.nasa.period) || (diagnostics && diagnostics.period);
+      $("diagnosisPeriod").textContent = period
+        ? "NASA POWER · " + period.start + " to " + period.end + " · " + period.days + " days"
+        : "NASA POWER · latest available window";
+
+      if (!diagnostics || !diagnostics.available) {
+        $("diagnosisHeadline").textContent =
+          (diagnostics && diagnostics.headline) || "NASA data is unavailable for this point.";
+        $("riskGrid").replaceChildren();
+        const note = el(
+          "p",
+          "dialog-error",
+          "The location is saved, but NASA agro-climatology did not return for this point. Try another spot or refresh.",
+        );
+        $("riskGrid").append(note);
+      } else {
+        $("diagnosisHeadline").textContent = diagnostics.headline;
+        $("riskGrid").replaceChildren();
+        (diagnostics.indicators || []).forEach((indicator) => {
+          $("riskGrid").append(renderRiskCard(indicator));
+        });
+      }
+
+      // Weighted priorities summary.
+      refreshPriorityChips();
+
+      // Mission provenance chips: active = queried, muted = not queried.
+      const missions = $("diagnosisMissions");
+      missions.replaceChildren();
+      const missionList = (diagnostics && diagnostics.missions) || ["NASA POWER"];
+      missionList.forEach((mission) => missions.append(el("span", "mission-chip", mission)));
+
+      const notQueried =
+        (diagnostics && diagnostics.missions_not_queried) ||
+        ["ECOSTRESS", "GPM", "Landsat", "GRACE-FO"];
+      notQueried.forEach((mission) => {
+        const chip = el("span", "mission-chip mission-chip-muted", mission);
+        chip.title = "Listed in the concept, but this app does not query this mission.";
+        chip.setAttribute("aria-label", mission + " (not queried by this app)");
+        missions.append(chip);
+      });
+
+      renderCoverage(diagnostics && diagnostics.coverage);
+      renderAnalytics(diagnostics);
+      renderDataGrid(diagnostics && diagnostics.data_grid);
+      renderFieldData();
+
+      $("compareBtn").disabled = !state.environment;
+      $("openDiagnosisBtn").hidden = false;
+    }
+
+    function showDiagnosis() {
+      $("diagnosisPanel").hidden = false;
+      $("diagBackdrop").hidden = false;
+      document.body.classList.add("diag-open");
+      $("openDiagnosisBtn").hidden = false;
+    }
+
+    function hideDiagnosis() {
+      $("diagnosisPanel").hidden = true;
+      $("diagBackdrop").hidden = true;
+      document.body.classList.remove("diag-open");
+    }
+
+    $("closeDiagnosis").addEventListener("click", hideDiagnosis);
+    $("openDiagnosisBtn").addEventListener("click", showDiagnosis);
+    $("diagBackdrop").addEventListener("click", hideDiagnosis);
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (!$("compareDialog").open) hideDiagnosis();
+    });
+
+    /* --- Plant health check ----------------------------------------------- */
+
+    function renderDiseaseResult(assessment) {
+      const body = $("diseaseResult");
+      body.replaceChildren();
+
+      if (assessment.summary) body.append(el("p", "risk-evidence", assessment.summary));
+
+      (assessment.possible_diseases || []).forEach((item) => {
+        const card = el("article", "disease-card");
+        const title = el("h5", null, item.name);
+        title.append(
+          el("span", "conf-pill " + (item.confidence || "low"), item.confidence || "low"),
+        );
+        card.append(title);
+        if (item.why) card.append(el("p", null, item.why));
+        if (item.symptoms_matched && item.symptoms_matched.length) {
+          const list = document.createElement("ul");
+          item.symptoms_matched.forEach((sign) => list.append(el("li", null, sign)));
+          card.append(list);
+        }
+        body.append(card);
+      });
+
+      if (assessment.likely_cause) {
+        const card = el("div", "disease-card");
+        card.append(el("h5", null, "Most likely cause"));
+        card.append(el("p", null, assessment.likely_cause));
+        body.append(card);
+      }
+
+      const sections = [
+        ["Do this now", assessment.immediate_actions],
+        ["Prevent it next season", assessment.prevention_next_season],
+      ];
+      sections.forEach(([title, items]) => {
+        if (!items || !items.length) return;
+        const card = el("div", "disease-card");
+        card.append(el("h5", null, title));
+        const list = document.createElement("ul");
+        items.forEach((item) => list.append(el("li", null, item)));
+        card.append(list);
+        body.append(card);
+      });
+
+      if (assessment.treatment_options && assessment.treatment_options.length) {
+        const card = el("div", "disease-card");
+        card.append(el("h5", null, "Treatment options"));
+        assessment.treatment_options.forEach((option) => {
+          const line = el("p", null, "");
+          line.append(el("b", null, option.type + ": "));
+          line.append(document.createTextNode(option.action));
+          if (option.note) line.append(document.createTextNode(" " + option.note));
+          card.append(line);
+        });
+        body.append(card);
+      }
+
+      if (assessment.monitor) {
+        const card = el("div", "disease-card");
+        card.append(el("h5", null, "Check over the next 7 days"));
+        card.append(el("p", null, assessment.monitor));
+        body.append(card);
+      }
+
+      if (assessment.when_to_call_expert) {
+        const card = el("div", "disease-card");
+        card.append(el("h5", null, "When to call an expert"));
+        card.append(el("p", null, assessment.when_to_call_expert));
+        body.append(card);
+      }
+
+      body.append(el("p", "safety-note", assessment.safety_note || ""));
+    }
+
+    async function runDiseaseCheck() {
+      const description = $("diseaseDescription").value.trim();
+      const crop = $("diseaseCrop").value.trim();
+      const result = $("diseaseResult");
+      const button = $("diseaseBtn");
+
+      if (description.length < 10) {
+        result.replaceChildren(
+          el(
+            "p",
+            "dialog-error",
+            "Describe the change in a few words, for example 'yellow spots on lower leaves with a brown edge'.",
+          ),
+        );
+        return;
+      }
+
+      button.disabled = true;
+      result.replaceChildren(loaderBlock("Comparing the signs with the weather and soil data…"));
+      try {
+        const data = await postJSON("/disease", {
+          description: description,
+          crop: crop,
+          context: collectContext(),
+        });
+        renderDiseaseResult(data.assessment || {});
+      } catch (error) {
+        result.replaceChildren(
+          el("p", "dialog-error", "Could not check the plant: " + error.message),
+        );
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    $("diseaseBtn").addEventListener("click", runDiseaseCheck);
+
+    async function diagnoseField({ openPanel = true, silent = false } = {}) {
+      if (!state.picked) {
+        showStatus("Pick a field on the map first.", "err");
+        return false;
+      }
+
+      selectBtn.disabled = true;
+      gpsBtn.disabled = true;
+      if (!silent) showStatus("Reading NASA agro-climatology for this field…");
+
+      try {
+        const data = await postJSON("/select", {
+          lat: state.picked.lat,
+          lng: state.picked.lng,
+          accuracy: state.picked.accuracy,
+          context: collectContext(),
+        });
+
+        state.environment = data.environment || null;
+        state.diagnostics = data.diagnostics || null;
+        state.fieldContext = data.field_context || collectContext();
+        state.satellite = data.satellite || (state.environment && state.environment.satellite) || null;
+
+        renderDiagnosis();
+        startSatellitePolling();
+        if (openPanel) showDiagnosis();
+
+        const place = data.place || "this field";
+        showStatus("Field diagnosed: " + place, "ok");
+        fieldStateEl.textContent = "Diagnosed";
+        fieldStateEl.classList.add("ready");
+        selectBtnLabel.textContent = "Re-run diagnosis";
+        return true;
+      } catch (error) {
+        showStatus("Could not diagnose this field: " + error.message, "err");
+        return false;
+      } finally {
+        selectBtn.disabled = false;
+        gpsBtn.disabled = false;
+      }
+    }
+
+    selectBtn.addEventListener("click", () => diagnoseField({ openPanel: true }));
+
+    $("refreshBtn").addEventListener("click", () => diagnoseField({ openPanel: false, silent: true }));
+    $("compareBtn").addEventListener("click", () => openComparison());
+    $("zoneBtn").addEventListener("click", () => runZoneAnalysis());
+
+    /* --- Comparison dialog ------------------------------------------------ */
+
+    let generating = false;
+
+    function scoreClass(value) {
+      if (value >= 70) return " good";
+      if (value >= 45) return " mid";
+      return " low";
+    }
+
+    function loaderBlock(text) {
+      const wrapper = el("div", "loader");
+      wrapper.append(el("div", "spinner"));
+      wrapper.append(el("span", null, text));
+      return wrapper;
+    }
+
+    function numCell(value, extraClass) {
+      const cell = el("td", "num" + scoreClass(value) + (extraClass ? " " + extraClass : ""));
+      cell.textContent = String(value);
+      return cell;
+    }
+
+    function buildComparisonTable(scenarios) {
+      const wrap = el("div", "table-wrap");
+      const table = el("table", "compare");
+
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      ["Scenario", "Overall", "Water", "Soil", "Climate", "Income", "Cost", "Labour"].forEach((label) => {
+        headRow.append(el("th", null, label));
+      });
+      thead.append(headRow);
+      table.append(thead);
+
+      const tbody = document.createElement("tbody");
+      scenarios.forEach((scenario) => {
+        const row = document.createElement("tr");
+        if (scenario.is_baseline) row.className = "row-baseline";
+
+        const nameCell = document.createElement("th");
+        nameCell.scope = "row";
+        const name = el("span", "t-name", scenario.name || "Scenario");
+        name.append(el("span", "t-flag", scenario.is_baseline ? "Baseline" : "#" + (scenario.rank || "—")));
+        nameCell.append(name);
+        nameCell.append(el("span", "t-rot", (scenario.rotation || "").replace(/\s*->\s*/g, " → ")));
+
+        row.append(nameCell);
+        row.append(numCell(scenario.overall || 0, "overall"));
+        DIMENSION_ORDER.forEach((dimension) => {
+          row.append(numCell((scenario.scores && scenario.scores[dimension]) || 0));
+        });
+        tbody.append(row);
+      });
+
+      table.append(tbody);
+      wrap.append(table);
+      return wrap;
+    }
+
+    function buildScoreBars(scores) {
+      const wrap = el("div", "score-bars");
+      DIMENSION_ORDER.forEach((dimension) => {
+        const value = (scores && scores[dimension]) || 0;
+        const row = el("div", "score-bar");
+        row.append(el("span", null, DIMENSION_LABELS[dimension]));
+
+        const track = el("span", "track");
+        const fill = el("i");
+        fill.style.width = Math.max(0, Math.min(100, value)) + "%";
+        track.append(fill);
+
+        row.append(track);
+        row.append(el("b", null, String(value)));
+        wrap.append(row);
+      });
+      return wrap;
+    }
+
+    function tradeList(title, items, kind) {
+      const box = el("div", "trade-box " + kind);
+      box.append(el("h5", null, title));
+      const list = document.createElement("ul");
+      (items && items.length ? items : ["Not supplied for this scenario."]).forEach((item) => {
+        list.append(el("li", null, item));
+      });
+      box.append(list);
+      return box;
+    }
+
+    const TRADEOFF_LABELS = {
+      water_use: "Water use",
+      organic_matter: "Organic matter",
+      erosion_control: "Erosion control",
+      forage_value: "Forage value",
+      market_viability: "Market access",
+    };
+
+    const TRADEOFF_ORDER = [
+      "water_use",
+      "organic_matter",
+      "erosion_control",
+      "forage_value",
+      "market_viability",
+    ];
+
+    function buildTradeoffCards(tradeoffs) {
+      const wrap = el("div", "tradeoff-cards");
+      TRADEOFF_ORDER.forEach((key) => {
+        const value = (tradeoffs && tradeoffs[key]) || 0;
+        const card = el("article", "tradeoff-card");
+        card.append(el("p", "tc-label", TRADEOFF_LABELS[key]));
+        card.append(el("p", "tc-value", String(value)));
+        const track = el("div", "tc-track");
+        const fill = document.createElement("i");
+        fill.style.width = Math.max(0, Math.min(100, value)) + "%";
+        track.append(fill);
+        card.append(track);
+        wrap.append(card);
+      });
+      return wrap;
+    }
+
+    const MONTH_LABELS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+    const ROLE_LABELS = {
+      main: "main crop",
+      cover: "cover crop",
+      legume: "legume",
+      fallow: "fallow",
+    };
+
+    function buildCalendar(entries) {
+      const wrap = el("div", "calendar");
+      wrap.append(el("h5", null, "Three-year crop calendar"));
+      if (!entries || !entries.length) {
+        wrap.append(el("p", "chart-empty", "No calendar supplied for this scenario."));
+        return wrap;
+      }
+
+      const byYear = { 1: [], 2: [], 3: [] };
+      entries.forEach((entry) => {
+        const year = Math.max(1, Math.min(3, Number(entry.year) || 1));
+        byYear[year].push(entry);
+      });
+
+      [1, 2, 3].forEach((year) => {
+        const yearEntries = byYear[year];
+        if (!yearEntries.length) return;
+
+        wrap.append(el("div", "cal-year", "Year " + year));
+
+        const months = el("div", "cal-months");
+        months.append(el("span", null, ""));
+        const monthRow = el("div", "cal-month-row");
+        MONTH_LABELS.forEach((label) => monthRow.append(el("span", null, label)));
+        months.append(monthRow);
+        wrap.append(months);
+
+        yearEntries.forEach((entry) => {
+          const start = Math.max(1, Math.min(12, Number(entry.start_month) || 1));
+          const end = Math.max(1, Math.min(12, Number(entry.end_month) || start));
+          const span = end >= start ? end - start + 1 : 12 - start + 1 + end;
+          const left = ((start - 1) / 12) * 100;
+          const width = (span / 12) * 100;
+
+          const row = el("div", "cal-row");
+          const name = el(
+            "span",
+            "cal-name",
+            entry.crop + " · " + (ROLE_LABELS[entry.role] || entry.role),
+          );
+          name.title =
+            entry.crop +
+            " (" +
+            ROLE_LABELS[entry.role] +
+            ") from month " +
+            start +
+            " to " +
+            end +
+            " in year " +
+            year;
+          row.append(name);
+
+          const track = el("div", "cal-track");
+          const bar = el("span", "cal-bar role-" + (entry.role || "main"));
+          bar.style.left = left + "%";
+          bar.style.width = Math.max(2, width) + "%";
+          bar.title = name.title;
+          track.append(bar);
+          row.append(track);
+          wrap.append(row);
+        });
+      });
+
+      return wrap;
+    }
+
+    function buildRiskAlerts(alerts) {
+      const wrap = el("div", "risk-alerts");
+      wrap.append(el("h5", null, "Agronomic risk alerts"));
+      alerts.forEach((alert) => {
+        const item = el("div", "risk-alert-item");
+        const left = el("div");
+        left.append(el("p", "ra-type", alert.type || "Risk"));
+        const severity = String(alert.severity || "medium").toLowerCase();
+        left.append(el("span", "ra-sev " + severity, severity));
+        item.append(left);
+        item.append(el("p", "ra-note", alert.note || ""));
+        wrap.append(item);
+      });
+      return wrap;
+    }
+
+    function buildScenarioCard(scenario) {
+      const card = el(
+        "article",
+        "scenario-card" +
+          (scenario.is_baseline ? " is-baseline" : "") +
+          (!scenario.is_baseline && scenario.rank === 1 ? " is-top" : ""),
+      );
+
+      const top = el("div", "card-top");
+
+      const badge = el(
+        "span",
+        "rank-badge" + (scenario.is_baseline ? " bench" : ""),
+        scenario.is_baseline ? "Benchmark" : "#" + (scenario.rank || "—"),
+      );
+
+      const titleWrap = el("div", "card-title-wrap");
+      titleWrap.append(
+        el(
+          "p",
+          "card-kicker",
+          scenario.is_baseline ? "Your current practice" : "AI scenario · rank " + (scenario.rank || "—"),
+        ),
+      );
+      titleWrap.append(el("h3", "card-title", scenario.name || "Scenario"));
+      titleWrap.append(
+        el("p", "card-rotation", (scenario.rotation || "").replace(/\s*->\s*/g, " → ")),
+      );
+
+      const ring = el("div", "score-ring");
+      ring.style.setProperty("--score", Math.max(0, Math.min(100, scenario.overall || 0)));
+      const ringInner = el("div", "score-ring-inner");
+      ringInner.append(el("b", null, String(scenario.overall || 0)));
+      ringInner.append(el("small", null, "/100"));
+      ring.append(ringInner);
+
+      top.append(badge, titleWrap, ring);
+      card.append(top);
+      card.append(buildScoreBars(scenario.scores));
+
+      if (scenario.why) card.append(el("p", "card-why", scenario.why));
+
+      const trades = el("div", "tradeoff-grid");
+      trades.append(tradeList("What improves", scenario.benefits, "gains"));
+      trades.append(tradeList("What it costs", scenario.tradeoffs, "costs"));
+      card.append(trades);
+
+      if (scenario.soil_health_gain || scenario.weather_resilience) {
+        const strategy = el("div", "strategy-grid");
+        if (scenario.soil_health_gain) {
+          const soil = el("div", "strategy-box");
+          soil.append(el("h5", null, "Soil health gain"));
+          soil.append(el("p", null, scenario.soil_health_gain));
+          strategy.append(soil);
+        }
+        if (scenario.weather_resilience) {
+          const weather = el("div", "strategy-box weather");
+          weather.append(el("h5", null, "Weather resilience"));
+          weather.append(el("p", null, scenario.weather_resilience));
+          strategy.append(weather);
+        }
+        card.append(strategy);
+      }
+
+      const meta = el("div", "meta-row");
+      const water = String(scenario.water_need || "medium").toLowerCase();
+      meta.append(el("span", "badge water-" + water, water + " water"));
+      const confidence = String(scenario.confidence || "medium").toLowerCase();
+      meta.append(el("span", "badge conf-" + confidence, confidence + " confidence"));
+      if (scenario.exposure_window) {
+        meta.append(el("span", "badge plain", "Exposure: " + scenario.exposure_window));
+      }
+      card.append(meta);
+
+      if (scenario.tradeoff_scores) {
+        const tradeoffWrap = el("div");
+        tradeoffWrap.append(el("h5", null, "Trade-off scorecards"));
+        tradeoffWrap.append(buildTradeoffCards(scenario.tradeoff_scores));
+        card.append(tradeoffWrap);
+      }
+
+      if (scenario.calendar && scenario.calendar.length) {
+        card.append(buildCalendar(scenario.calendar));
+      }
+
+      if (Array.isArray(scenario.risk_alerts) && scenario.risk_alerts.length) {
+        card.append(buildRiskAlerts(scenario.risk_alerts));
+      }
+
+      if (scenario.risk) {
+        const risk = el("div", "gaps-box");
+        risk.append(el("h5", null, "Watch out"));
+        risk.append(el("p", null, scenario.risk));
+        card.append(risk);
+      }
+
+      const details = el("details", "scenario-details");
+      details.append(el("summary", null, "Season plan and field steps"));
+      const detailsBody = el("div", "details-body");
+      if (scenario.season_plan) detailsBody.append(el("p", null, scenario.season_plan));
+
+      if (Array.isArray(scenario.steps) && scenario.steps.length) {
+        const steps = document.createElement("ol");
+        scenario.steps.forEach((step) => steps.append(el("li", null, step)));
+        detailsBody.append(steps);
+      }
+
+      if (scenario.confidence_reason) {
+        detailsBody.append(el("p", "confidence-note", scenario.confidence_reason));
+      }
+      details.append(detailsBody);
+      card.append(details);
+
+      if (Array.isArray(scenario.evidence) && scenario.evidence.length) {
+        const evidence = el("div", "evidence-box");
+        evidence.append(el("h5", null, "NASA evidence used"));
+        const list = document.createElement("ul");
+        scenario.evidence.forEach((item) => list.append(el("li", null, item)));
+        evidence.append(list);
+        card.append(evidence);
+      }
+
+      if (Array.isArray(scenario.data_gaps) && scenario.data_gaps.length) {
+        const gaps = el("div", "gaps-box");
+        gaps.append(el("h5", null, "Still unknown"));
+        const list = document.createElement("ul");
+        scenario.data_gaps.forEach((item) => list.append(el("li", null, item)));
+        gaps.append(list);
+        card.append(gaps);
+      }
+
+      return card;
+    }
+
+    function buildUncertaintyBlock(recommendations, diagnostics) {
+      const wrap = el("section", "uncertainty");
+      wrap.append(el("h3", null, "Uncertainty and data gaps"));
+
+      const uncertainty = recommendations.uncertainty || {};
+      if (uncertainty.summary) {
+        wrap.append(el("p", "uncertainty-summary", uncertainty.summary));
+      }
+
+      const grid = el("div", "uncertainty-grid");
+
+      const gapCol = el("div");
+      gapCol.append(el("h4", null, "What the data cannot tell you"));
+      const gapList = document.createElement("ul");
+      const gaps =
+        (uncertainty.data_gaps && uncertainty.data_gaps.length && uncertainty.data_gaps) ||
+        (diagnostics && diagnostics.coverage && diagnostics.coverage.missing) ||
+        ["No additional gaps recorded."];
+      gaps.forEach((item) => gapList.append(el("li", null, item)));
+      gapCol.append(gapList);
+
+      const assumptionCol = el("div");
+      assumptionCol.append(el("h4", null, "Assumptions behind the scores"));
+      const assumptionList = document.createElement("ul");
+      const assumptions =
+        (uncertainty.assumptions && uncertainty.assumptions.length && uncertainty.assumptions) || [
+          "Scores are relative, not measured yields.",
+        ];
+      assumptions.forEach((item) => assumptionList.append(el("li", null, item)));
+      assumptionCol.append(assumptionList);
+
+      grid.append(gapCol, assumptionCol);
+      wrap.append(grid);
+
+      if (diagnostics && diagnostics.coverage && diagnostics.coverage.note) {
+        wrap.append(el("p", "prov-note", diagnostics.coverage.note));
+      }
+      return wrap;
+    }
+
+    function buildStressPanel(recommendations) {
+      const panel = el("section", "stress-panel");
+      panel.append(el("h3", null, "Climate stress simulator"));
+      panel.append(
+        el(
+          "p",
+          "cmp-note",
+          "Shift the measured NASA POWER baseline and see whether each rotation still balances rain against crop water demand. This is a what-if, not a forecast.",
+        ),
+      );
+
+      const sliders = el("div", "stress-sliders");
+
+      function slider(id, label, min, max, step, value, suffix) {
+        const row = el("div", "stress-slider");
+        const labelEl = el("label", null, label);
+        labelEl.htmlFor = id;
+        const input = document.createElement("input");
+        input.type = "range";
+        input.id = id;
+        input.min = String(min);
+        input.max = String(max);
+        input.step = String(step);
+        input.value = String(value);
+        const output = el("output", null, value + suffix);
+        input.addEventListener("input", () => {
+          output.textContent = input.value + suffix;
+        });
+        row.append(labelEl, input, output);
+        sliders.append(row);
+        return input;
+      }
+
+      const rainInput = slider("stressRain", "Rainfall change", -20, 20, 5, 0, "%");
+      const tempInput = slider("stressTemp", "Temperature rise", 0, 3, 0.5, 1, " °C");
+      panel.append(sliders);
+
+      const button = el("button", "secondary-btn", "Run stress test");
+      button.type = "button";
+      button.id = "stressBtn";
+      panel.append(button);
+
+      const results = el("div", "stress-results");
+      results.id = "stressResults";
+      panel.append(results);
+
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        results.replaceChildren(loaderBlock("Recalculating the water balance…"));
+        try {
+          const data = await postJSON("/stress", {
+            rainfall_change_pct: Number(rainInput.value),
+            temp_change_c: Number(tempInput.value),
+            context: collectContext(),
+            priorities: collectPriorities(),
+          });
+          renderStressResults(data.stress || {});
+        } catch (error) {
+          results.replaceChildren(
+            el("p", "dialog-error", "Could not run the stress test: " + error.message),
+          );
+        } finally {
+          button.disabled = false;
+        }
+      });
+
+      return panel;
+    }
+
+    function renderStressResults(stress) {
+      const results = $("stressResults");
+      if (!results) return;
+      results.replaceChildren();
+
+      if (!stress.available) {
+        results.append(el("p", "chart-empty", stress.note || "Stress test unavailable."));
+        return;
+      }
+
+      const base = stress.base || {};
+      results.append(
+        el(
+          "p",
+          "cmp-note",
+          "Baseline: " +
+            formatMm(base.rain_mm) +
+            " rain against " +
+            formatMm(base.et0_mm) +
+            " estimated ET0. Under this scenario: " +
+            stress.rainfall_change_pct +
+            "% rain and +" +
+            stress.temp_change_c +
+            " °C.",
+        ),
+      );
+
+      (stress.scenarios || []).forEach((item) => {
+        const card = el("article", "stress-card risk-" + (item.risk || "low"));
+        card.append(el("h5", null, item.name));
+        card.append(
+          el("p", "sc-rot", (item.rotation || "").replace(/\s*->\s*/g, " → ")),
+        );
+        card.append(el("p", "sc-balance", formatMm(item.balance_mm)));
+        card.append(
+          el(
+            "p",
+            "sc-note",
+            item.label +
+              " · rain " +
+              formatMm(item.rain_mm) +
+              " vs crop use " +
+              formatMm(item.et0_mm) +
+              ". " +
+              (item.note || ""),
+          ),
+        );
+        if (item.groundwater_flag) {
+          card.append(el("p", "sc-note", "Flags groundwater depletion risk."));
+        }
+        results.append(card);
+      });
+
+      if (stress.groundwater_risk && stress.groundwater_risk.length) {
+        results.append(
+          el(
+            "p",
+            "stress-alert",
+            "Could deplete local groundwater: " +
+              stress.groundwater_risk.join(", ") +
+              ". Plan extra water, mulch or a shorter season.",
+          ),
+        );
+      }
+      results.append(el("p", "cmp-note", stress.note || ""));
+    }
+
+    function renderComparison(data) {
+      const recommendations = data.recommendations || {};
+      const environment = data.context || state.environment || {};
+      const diagnostics =
+        recommendations.diagnostics || data.diagnostics || state.diagnostics || {};
+      const fieldContext = recommendations.context || data.field_context || collectContext();
+      const place = (environment.location && environment.location.name) || "Your field";
+      const period = environment.nasa && environment.nasa.period;
+
+      $("compareSub").textContent =
+        place + (period ? " · NASA window " + period.start + " to " + period.end : "");
+
+      const body = $("compareBody");
+      body.replaceChildren();
+
+      if (recommendations.summary) {
+        body.append(el("p", "cmp-summary", recommendations.summary));
+      }
+
+      const chips = el("div", "cmp-chips");
+      const priorities = recommendations.priorities || collectPriorities();
+      PRIORITY_DEFS.forEach(([key, label]) => {
+        const chip = el("span", "cmp-chip");
+        chip.append(document.createTextNode(label.split(" ")[0] + " "));
+        chip.append(el("b", null, String(priorities[key] || 0)));
+        chips.append(chip);
+      });
+      if (fieldContext.current_rotation) {
+        chips.append(el("span", "cmp-chip", "Current: " + fieldContext.current_rotation));
+      }
+      if (fieldContext.soil_texture) {
+        chips.append(el("span", "cmp-chip", fieldContext.soil_texture + " soil"));
+      }
+      if (fieldContext.irrigation) {
+        chips.append(el("span", "cmp-chip", fieldContext.irrigation));
+      }
+      body.append(chips);
+
+      if (diagnostics.headline) {
+        const strip = el("div", "diag-strip");
+        strip.append(el("p", "diag-strip-text", diagnostics.headline));
+        (diagnostics.indicators || []).forEach((indicator) => {
+          strip.append(
+            el(
+              "span",
+              "diag-pip level-" + indicator.level,
+              indicator.label + " · " + (LEVEL_LABEL[indicator.level] || indicator.level),
+            ),
+          );
+        });
+        body.append(strip);
+      }
+
+      body.append(el("h3", "cmp-section-title", "Scenario comparison"));
+      body.append(
+        el(
+          "p",
+          "cmp-note",
+          "Overall is a weighted average of the six dimensions using your priorities. " +
+            "The baseline is your current practice and is scored from this field's signals, not by the AI.",
+        ),
+      );
+      body.append(buildComparisonTable(recommendations.scenarios || []));
+
+      body.append(el("h3", "cmp-section-title", "Scenario detail and trade-offs"));
+      (recommendations.scenarios || []).forEach((scenario) => {
+        body.append(buildScenarioCard(scenario));
+      });
+
+      body.append(buildStressPanel(recommendations));
+
+      body.append(buildUncertaintyBlock(recommendations, diagnostics));
+
+      if (recommendations.caveats) {
+        body.append(el("p", "prov-note", recommendations.caveats));
+      }
+
+      body.scrollTop = 0;
+    }
+
+    function renderComparisonError(error) {
+      $("compareSub").textContent = "Comparison not available";
+      const body = $("compareBody");
+      body.replaceChildren();
+      body.append(el("p", "dialog-error", "Could not build the comparison: " + error.message));
+
+      const retry = el("button", "secondary-btn", "Try again");
+      retry.type = "button";
+      retry.addEventListener("click", () => runComparison());
+      body.append(retry);
+    }
+
+    async function runComparison() {
+      if (generating) return;
+      generating = true;
+      $("againBtn").disabled = true;
+      $("compareBody").replaceChildren(
+        loaderBlock("Reading the field diagnosis, weighing your priorities and writing three scenarios…"),
+      );
+      $("compareSub").textContent = "Comparing scenarios…";
+
+      try {
+        const data = await postJSON("/recommend", {
+          priorities: collectPriorities(),
+          context: collectContext(),
+        });
+        state.lastResult = data;
+        renderComparison(data);
+      } catch (error) {
+        renderComparisonError(error);
+      } finally {
+        generating = false;
+        $("againBtn").disabled = false;
+      }
+    }
+
+    async function openComparison() {
+      if (!state.environment) {
+        const ok = await diagnoseField({ openPanel: true });
+        if (!ok) return;
+      }
+
+      const dialog = $("compareDialog");
+      if (!dialog.open) dialog.showModal();
+      await runComparison();
+    }
+
+    $("closeCompare").addEventListener("click", () => $("compareDialog").close());
+    $("doneCompare").addEventListener("click", () => $("compareDialog").close());
+    $("againBtn").addEventListener("click", () => runComparison());
+
+    /* --- Expert review export --------------------------------------------- */
+
+    function exportForAgronomist() {
+      const data = state.lastResult;
+      if (!data || !data.recommendations) {
+        showStatus("Run the comparison before exporting a summary.", "err");
+        return;
+      }
+      const recommendations = data.recommendations;
+      const environment = data.context || state.environment || {};
+      const diagnostics = recommendations.diagnostics || data.diagnostics || {};
+      const fieldContext = recommendations.context || data.field_context || collectContext();
+      const place = (environment.location && environment.location.name) || "Selected field";
+      const period = environment.nasa && environment.nasa.period;
+
+      const lines = [];
+      lines.push("# Harvest Atlas field review");
+      lines.push("");
+      lines.push("Prepared for a local agronomist or extension officer.");
+      lines.push("This sheet supports human judgment. It is not a prescription.");
+      lines.push("");
+      lines.push("## Field");
+      lines.push("- Place: " + place);
+      lines.push(
+        "- Coordinates: " +
+          formatNumber((environment.location || {}).lat, 4) +
+          ", " +
+          formatNumber((environment.location || {}).lng, 4),
+      );
+      if (period) lines.push("- NASA POWER window: " + period.start + " to " + period.end);
+      if (fieldContext.current_rotation) lines.push("- Current rotation: " + fieldContext.current_rotation);
+      if (fieldContext.field_size_ha) lines.push("- Field size: " + fieldContext.field_size_ha + " ha");
+      if (fieldContext.polygon_area_ha) lines.push("- Drawn boundary area: " + fieldContext.polygon_area_ha.toFixed(2) + " ha");
+      if (fieldContext.soil_texture) lines.push("- Soil texture: " + fieldContext.soil_texture);
+      if (fieldContext.irrigation_status || fieldContext.irrigation) {
+        lines.push("- Irrigation: " + (fieldContext.irrigation_status || fieldContext.irrigation));
+      }
+      if (fieldContext.soil_test_ph !== null && fieldContext.soil_test_ph !== undefined) {
+        lines.push("- Soil test pH: " + fieldContext.soil_test_ph);
+      }
+      if (fieldContext.soil_test_om !== null && fieldContext.soil_test_om !== undefined) {
+        lines.push("- Soil test organic matter: " + fieldContext.soil_test_om + "%");
+      }
+      const npk = ["n", "p", "k"]
+        .map((key) => fieldContext["soil_test_" + key])
+        .filter((value) => value !== null && value !== undefined);
+      if (npk.length) lines.push("- Soil test NPK: " + npk.join(" / "));
+      lines.push("");
+
+      if (diagnostics.indicators && diagnostics.indicators.length) {
+        lines.push("## Diagnosis");
+        lines.push("- Headline: " + (diagnostics.headline || ""));
+        diagnostics.indicators.forEach((item) => {
+          lines.push(
+            "- " + item.label + ": " + item.level + " concern (safety " + item.score + "/100). " + item.evidence,
+          );
+        });
+        lines.push("");
+      }
+
+      const climate = diagnostics.climate || {};
+      if (climate.available) {
+        lines.push("## Climate analytics");
+        lines.push("- Rain total: " + formatMm(climate.rain_total_mm));
+        lines.push("- Estimated ET0: " + formatMm(climate.et0_total_mm));
+        lines.push("- Water balance: " + formatMm(climate.water_balance_mm) + " (" + climate.water_balance_label + ")");
+        lines.push("- Longest dry spell: " + climate.longest_dry_spell_days + " days");
+        lines.push("- Rain trend: " + climate.rain_trend);
+        lines.push("");
+      }
+
+      lines.push("## Rotation scenarios");
+      (recommendations.scenarios || []).forEach((scenario) => {
+        lines.push("");
+        lines.push("### " + scenario.name + (scenario.is_baseline ? " (baseline)" : ""));
+        lines.push("- Rotation: " + (scenario.rotation || ""));
+        lines.push("- Overall score: " + (scenario.overall || 0) + "/100");
+        lines.push("- Water need: " + (scenario.water_need || "medium"));
+        if (scenario.why) lines.push("- Why: " + scenario.why);
+        if (scenario.soil_health_gain) lines.push("- Soil health gain: " + scenario.soil_health_gain);
+        if (scenario.weather_resilience) lines.push("- Weather resilience: " + scenario.weather_resilience);
+        if (scenario.risk) lines.push("- Risk: " + scenario.risk);
+        if (scenario.scores) {
+          lines.push(
+            "- Scores: " +
+              Object.entries(scenario.scores)
+                .map(([key, value]) => key + " " + value)
+                .join(", "),
+          );
+        }
+        if (scenario.tradeoff_scores) {
+          lines.push(
+            "- Trade-offs: " +
+              Object.entries(scenario.tradeoff_scores)
+                .map(([key, value]) => key + " " + value)
+                .join(", "),
+          );
+        }
+        if (scenario.calendar && scenario.calendar.length) {
+          lines.push(
+            "- Calendar: " +
+              scenario.calendar
+                .map((entry) => entry.crop + " (" + entry.role + ") " + entry.start_month + "-" + entry.end_month)
+                .join("; "),
+          );
+        }
+        if (scenario.evidence && scenario.evidence.length) {
+          scenario.evidence.forEach((item) => lines.push("- Evidence: " + item));
+        }
+        if (scenario.data_gaps && scenario.data_gaps.length) {
+          scenario.data_gaps.forEach((item) => lines.push("- Unknown: " + item));
+        }
+      });
+
+      lines.push("");
+      lines.push("## Questions for the agronomist");
+      lines.push("1. Which of these rotations fits the local seed supply and market this season?");
+      lines.push("2. Does the described plant problem match a disease, pest or nutrient deficiency?");
+      lines.push("3. What chemical, if any, is legal and safe here, and at what dose?");
+      lines.push("4. Which soil test would you prioritise next (pH, organic matter, N, P or K)?");
+      lines.push("5. How should the water plan change under the stress scenario?");
+      lines.push("");
+      if (recommendations.uncertainty && recommendations.uncertainty.summary) {
+        lines.push("## Uncertainty");
+        lines.push(recommendations.uncertainty.summary);
+        lines.push("");
+      }
+
+      const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "harvest-atlas-field-review.md";
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      showStatus("Summary exported for your agronomist.", "ok");
+    }
+
+    $("exportBtn").addEventListener("click", exportForAgronomist);
+    $("adjustBtn").addEventListener("click", () => {
+      $("compareDialog").close();
+      hideDiagnosis();
+      const target = $("priorityList");
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+      const first = $("priority-water");
+      if (first) first.focus({ preventScroll: true });
+    });
+
+    $("compareDialog").addEventListener("click", (event) => {
+      if (event.target === $("compareDialog")) $("compareDialog").close();
+    });
+
+    /* --- GPS --------------------------------------------------------------- */
+
+    function gpsErrorMessage(error) {
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          return "Location permission denied. Allow location access in your browser, then try again.";
+        case error.POSITION_UNAVAILABLE:
+          return "Your location is unavailable right now (no GPS or network fix).";
+        case error.TIMEOUT:
+          return "Timed out while getting your location. Try again.";
+        default:
+          return "Could not get your location: " + error.message;
+      }
+    }
+
+    function useMyLocation({ auto = false } = {}) {
+      if (!navigator.geolocation) {
+        showStatus("This browser does not support GPS/geolocation.", "err");
+        return;
+      }
+
+      gpsBtn.disabled = true;
+      if (!auto) showStatus("Finding your field…");
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+
+          dropPin(latitude, longitude, accuracy);
+          map.flyTo([latitude, longitude], 15, { duration: 0.9 });
+
+          const ok = await diagnoseField({ openPanel: !auto, silent: auto });
+          if (auto && ok) {
+            showStatus("Location found. Field diagnosis is ready.", "ok");
+          }
+          gpsBtn.disabled = false;
+        },
+        (error) => {
+          gpsBtn.disabled = false;
+          showStatus(gpsErrorMessage(error), "err");
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
+      );
+    }
+
+    gpsBtn.addEventListener("click", () => useMyLocation());
+
+    /* --- Start ------------------------------------------------------------- */
+
+    buildPriorities();
+    setPriorities(DEFAULT_PRIORITIES);
+
+    // Ask for location once on load, then quietly prepare the diagnosis.
+    useMyLocation({ auto: true });
+  </script>
+</body>
+</html>

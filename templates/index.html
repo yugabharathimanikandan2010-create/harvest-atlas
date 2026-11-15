@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pick a location</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --ink: #10212b;
+      --muted: #5b6b76;
+      --card: #ffffff;
+      --accent: #0f766e;
+      --accent-hover: #115e59;
+      --ok: #15803d;
+      --err: #b91c1c;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--ink);
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      cursor: crosshair;
+      background: #dfe7ec;
+    }
+
+    .panel {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      z-index: 1000;
+      width: 310px;
+      max-width: calc(100vw - 36px);
+      padding: 18px 18px 16px;
+      background: var(--card);
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(16, 33, 43, 0.18);
+    }
+
+    .panel h1 {
+      margin: 0 0 6px;
+      font-size: 17px;
+      letter-spacing: 0.2px;
+    }
+
+    .hint {
+      margin: 0 0 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .coords {
+      padding: 11px 12px;
+      margin-bottom: 12px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      background: #f3f7f8;
+      border: 1px solid #e1e9ec;
+      border-radius: 9px;
+      color: var(--muted);
+      min-height: 40px;
+    }
+
+    .coords.picked {
+      color: var(--ink);
+      border-color: #a7d3cd;
+      background: #eefaf8;
+    }
+
+    .actions {
+      display: grid;
+      gap: 8px;
+    }
+
+    button {
+      width: 100%;
+      padding: 11px 14px;
+      font: inherit;
+      font-weight: 600;
+      font-size: 14px;
+      color: #fff;
+      background: var(--accent);
+      border: 0;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    button:hover:not(:disabled) { background: var(--accent-hover); }
+
+    button:disabled {
+      background: #c3ced4;
+      cursor: not-allowed;
+    }
+
+    button.secondary {
+      color: var(--accent);
+      background: #fff;
+      border: 1px solid #b9d8d3;
+    }
+
+    button.secondary:hover:not(:disabled) { background: #eefaf8; }
+
+    button.secondary:disabled {
+      color: #8a9aa3;
+      background: #f6f8f9;
+      border-color: #e1e9ec;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 13px;
+      line-height: 1.4;
+      min-height: 18px;
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--err); }
+
+    /* --- Crop rotation dialog --- */
+    #cropDialog {
+      width: min(680px, 92vw);
+      max-height: 86vh;
+      padding: 0;
+      border: 0;
+      border-radius: 16px;
+      color: var(--ink);
+      box-shadow: 0 24px 70px rgba(16, 33, 43, 0.35);
+    }
+
+    #cropDialog::backdrop {
+      background: rgba(9, 20, 26, 0.55);
+    }
+
+    .dialog-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 20px 22px 14px;
+      border-bottom: 1px solid #eef2f4;
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 2;
+    }
+
+    .dialog-head h2 {
+      margin: 0 0 4px;
+      font-size: 18px;
+      letter-spacing: 0.2px;
+    }
+
+    .dialog-sub {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
+    .close-x {
+      flex: none;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border-radius: 50%;
+      background: #f1f5f6;
+      color: #3d4f58;
+      font-size: 18px;
+      font-weight: 500;
+      line-height: 1;
+    }
+
+    .close-x:hover:not(:disabled) { background: #e4ebed; }
+
+    .dialog-body {
+      padding: 16px 22px 8px;
+      max-height: calc(86vh - 148px);
+      overflow-y: auto;
+    }
+
+    .dialog-foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 14px 22px 18px;
+      border-top: 1px solid #eef2f4;
+    }
+
+    .dialog-foot button {
+      width: auto;
+      padding: 9px 18px;
+    }
+
+    .rotation {
+      padding: 14px 14px 12px;
+      margin-bottom: 12px;
+      background: #fbfdfd;
+      border: 1px solid #e3ecee;
+      border-radius: 12px;
+    }
+
+    .rotation h3 {
+      margin: 0 0 4px;
+      font-size: 15px;
+      line-height: 1.35;
+    }
+
+    .rotation .season {
+      margin: 0 0 8px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .rotation .why {
+      margin: 0 0 8px;
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+
+    .rotation ul {
+      margin: 0 0 9px;
+      padding-left: 18px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #33454d;
+    }
+
+    .rotation ul li { margin-bottom: 2px; }
+
+    .rotation ol.steps {
+      margin: 0 0 9px;
+      padding-left: 20px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #33454d;
+    }
+
+    .rotation ol.steps li { margin-bottom: 3px; }
+
+    .mini-label {
+      margin: 10px 0 4px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #eefaf8;
+      color: var(--accent);
+    }
+
+    .badge.water-low { background: #eefaf8; color: #0f766e; }
+    .badge.water-medium { background: #fff6e8; color: #b45309; }
+    .badge.water-high { background: #fdecec; color: #b91c1c; }
+
+    .rotation .risk {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: #7c4a03;
+    }
+
+    .dialog-note {
+      margin: 0 0 14px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    .dialog-note.summary {
+      color: var(--ink);
+      font-size: 13.5px;
+    }
+
+    .loader {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 22px 2px 26px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .spinner {
+      width: 22px;
+      height: 22px;
+      flex: none;
+      border: 3px solid #d8e5e2;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .dialog-error {
+      padding: 14px 0 20px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: var(--err);
+    }
+
+    .leaflet-control-attribution { font-size: 10px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="panel">
+    <h1>Select a location</h1>
+    <p class="hint">
+      Click the map or drag the pin to choose a spot, or use your device's GPS.
+      Press Select: NASA crop data is logged in your terminal and the AI
+      recommends 3 crop rotations in simple words.
+    </p>
+    <div class="coords" id="coords">No location selected</div>
+    <div class="actions">
+      <button id="gpsBtn" class="secondary" type="button">◉ Use my location</button>
+      <button id="selectBtn" type="button" disabled>Select</button>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+  </div>
+
+  <dialog id="cropDialog" aria-labelledby="cropDialogTitle">
+    <div class="dialog-head">
+      <div>
+        <h2 id="cropDialogTitle">Recommended crop rotations</h2>
+        <p class="dialog-sub" id="cropDialogSub">Based on NASA POWER data</p>
+      </div>
+      <button class="close-x" id="closeDialog" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="dialog-body" id="cropDialogBody"></div>
+    <div class="dialog-foot">
+      <button id="regenerateBtn" class="secondary" type="button">Regenerate</button>
+      <button id="doneBtn" type="button">Done</button>
+    </div>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map("map", { worldCopyJump: true }).setView([20, 10], 2);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
+
+    const coordsEl = document.getElementById("coords");
+    const statusEl = document.getElementById("status");
+    const selectBtn = document.getElementById("selectBtn");
+    const gpsBtn = document.getElementById("gpsBtn");
+
+    let marker = null;
+    let accuracyCircle = null;
+    let picked = null;
+
+    function format(lat, lng) {
+      return `Lat ${lat.toFixed(6)}  |  Lng ${lng.toFixed(6)}`;
+    }
+
+    function showStatus(text, kind) {
+      statusEl.textContent = text;
+      statusEl.className = "status" + (kind ? " " + kind : "");
+    }
+
+    function dropPin(lat, lng, accuracy) {
+      const latlng = [lat, lng];
+
+      if (marker) {
+        marker.setLatLng(latlng);
+      } else {
+        marker = L.marker(latlng, { draggable: true }).addTo(map);
+
+        // Keep the readout live while the pin is being dragged.
+        marker.on("drag", () => {
+          const position = marker.getLatLng();
+          coordsEl.textContent = format(position.lat, position.lng);
+          coordsEl.classList.add("picked");
+        });
+
+        // Settle the pin (and save a manual pick, so no GPS accuracy anymore).
+        marker.on("dragend", () => {
+          const position = marker.getLatLng();
+          dropPin(position.lat, position.lng, null);
+          showStatus("");
+        });
+      }
+
+      if (accuracyCircle) {
+        accuracyCircle.remove();
+        accuracyCircle = null;
+      }
+
+      picked = { lat, lng };
+      const hasAccuracy = Number.isFinite(accuracy) && accuracy > 0;
+
+      if (hasAccuracy) {
+        picked.accuracy = accuracy;
+        accuracyCircle = L.circle(latlng, {
+          radius: accuracy,
+          color: "#0f766e",
+          weight: 1,
+          fillColor: "#0f766e",
+          fillOpacity: 0.1,
+        }).addTo(map);
+      }
+
+      coordsEl.textContent =
+        format(lat, lng) + (hasAccuracy ? `  (±${Math.round(accuracy)} m)` : "");
+      coordsEl.classList.add("picked");
+      selectBtn.disabled = false;
+    }
+
+    map.on("click", (event) => {
+      const { lat, lng } = event.latlng;
+      dropPin(lat, lng, null);
+      showStatus("");
+    });
+
+    async function saveLocation({ openDialog = true } = {}) {
+      if (!picked) return false;
+
+      selectBtn.disabled = true;
+      gpsBtn.disabled = true;
+      showStatus("Saving and fetching NASA data…");
+
+      try {
+        const response = await fetch("/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(picked),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || `Request failed (${response.status})`);
+        }
+
+        const place = data.place ? `  (${data.place})` : "";
+        showStatus(`Saved to terminal ✓${place}`, "ok");
+
+        if (openDialog) {
+          await openRecommendations();
+        }
+        return true;
+      } catch (error) {
+        showStatus(`Error: ${error.message}`, "err");
+        return false;
+      } finally {
+        selectBtn.disabled = false;
+        gpsBtn.disabled = false;
+      }
+    }
+
+    selectBtn.addEventListener("click", () => saveLocation());
+
+    // --- Crop rotation dialog ---
+    const cropDialog = document.getElementById("cropDialog");
+    const cropBody = document.getElementById("cropDialogBody");
+    const cropSub = document.getElementById("cropDialogSub");
+    const regenerateBtn = document.getElementById("regenerateBtn");
+
+    let generatingRecommendations = false;
+
+    function showDialogLoading() {
+      cropBody.replaceChildren();
+      const wrapper = document.createElement("div");
+      wrapper.className = "loader";
+      const spinner = document.createElement("div");
+      spinner.className = "spinner";
+      const label = document.createElement("span");
+      label.textContent = "Reading NASA data with the AI agronomist…";
+      wrapper.append(spinner, label);
+      cropBody.append(wrapper);
+    }
+
+    function addParagraph(parent, text, className) {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = text;
+      if (className) paragraph.className = className;
+      parent.append(paragraph);
+      return paragraph;
+    }
+
+    function renderRecommendations(data) {
+      const rec = data.recommendations || {};
+      const context = data.context || {};
+      const place = (context.location && context.location.name) || "selected location";
+      const period = context.nasa && context.nasa.period;
+
+      cropSub.textContent = period
+        ? `${place}  •  NASA window ${period.start} to ${period.end}`
+        : place;
+
+      cropBody.replaceChildren();
+
+      if (rec.summary) {
+        addParagraph(cropBody, rec.summary, "dialog-note summary");
+      }
+
+      (rec.rotations || []).forEach((rotation, index) => {
+        const card = document.createElement("div");
+        card.className = "rotation";
+
+        const title = document.createElement("h3");
+        title.textContent = `${index + 1}. ${rotation.rotation || "Rotation"}`;
+        card.append(title);
+
+        if (rotation.season_plan) {
+          addParagraph(card, rotation.season_plan, "season");
+        }
+        if (rotation.why) {
+          addParagraph(card, rotation.why, "why");
+        }
+
+        if (Array.isArray(rotation.steps) && rotation.steps.length) {
+          addParagraph(card, "How to grow", "mini-label");
+          const steps = document.createElement("ol");
+          steps.className = "steps";
+          rotation.steps.forEach((step) => {
+            const item = document.createElement("li");
+            item.textContent = step;
+            steps.append(item);
+          });
+          card.append(steps);
+        }
+
+        if (Array.isArray(rotation.benefits) && rotation.benefits.length) {
+          addParagraph(card, "Good points", "mini-label");
+          const list = document.createElement("ul");
+          rotation.benefits.forEach((benefit) => {
+            const item = document.createElement("li");
+            item.textContent = benefit;
+            list.append(item);
+          });
+          card.append(list);
+        }
+
+        const badges = document.createElement("div");
+        badges.className = "badges";
+        const water = String(rotation.water_need || "medium").toLowerCase();
+        const level = ["low", "medium", "high"].includes(water) ? water : "medium";
+        const badge = document.createElement("span");
+        badge.className = `badge water-${level}`;
+        badge.textContent = `Water: ${level}`;
+        badges.append(badge);
+        card.append(badges);
+
+        if (rotation.risk) {
+          addParagraph(card, "Watch out", "mini-label");
+          addParagraph(card, rotation.risk, "risk");
+        }
+
+        cropBody.append(card);
+      });
+
+      if (rec.caveats) {
+        addParagraph(cropBody, rec.caveats, "dialog-note");
+      }
+    }
+
+    async function openRecommendations() {
+      if (generatingRecommendations) return;
+      generatingRecommendations = true;
+      regenerateBtn.disabled = true;
+
+      if (!cropDialog.open) cropDialog.showModal();
+      cropSub.textContent = "Analyzing the selected location…";
+      showDialogLoading();
+
+      try {
+        const response = await fetch("/recommend", { method: "POST" });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || `Request failed (${response.status})`);
+        }
+        renderRecommendations(data);
+      } catch (error) {
+        cropBody.replaceChildren();
+        addParagraph(
+          cropBody,
+          `Could not get crop recommendations: ${error.message}`,
+          "dialog-error",
+        );
+      } finally {
+        generatingRecommendations = false;
+        regenerateBtn.disabled = false;
+      }
+    }
+
+    document.getElementById("closeDialog").addEventListener("click", () => cropDialog.close());
+    document.getElementById("doneBtn").addEventListener("click", () => cropDialog.close());
+    regenerateBtn.addEventListener("click", () => openRecommendations());
+
+    function gpsErrorMessage(error) {
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          return "Location permission denied. Allow location access in your browser, then try again.";
+        case error.POSITION_UNAVAILABLE:
+          return "Your location is unavailable right now (no GPS or network fix).";
+        case error.TIMEOUT:
+          return "Timed out while getting your location. Try again.";
+        default:
+          return `Could not get your location: ${error.message}`;
+      }
+    }
+
+    function useMyLocation({ auto = false } = {}) {
+      if (!navigator.geolocation) {
+        showStatus("This browser does not support GPS/geolocation.", "err");
+        return;
+      }
+
+      gpsBtn.disabled = true;
+      if (!auto) showStatus("Locating…");
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+
+          dropPin(latitude, longitude, accuracy);
+          map.flyTo([latitude, longitude], 15, { duration: 0.9 });
+
+          await saveLocation({ openDialog: !auto });
+          gpsBtn.disabled = false;
+        },
+        (error) => {
+          gpsBtn.disabled = false;
+          showStatus(gpsErrorMessage(error), "err");
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
+      );
+    }
+
+    gpsBtn.addEventListener("click", () => useMyLocation());
+
+    // Locate automatically when the page opens (the browser will ask permission once).
+    useMyLocation({ auto: true });
+  </script>
+</body>
+</html>
